@@ -1,20 +1,19 @@
 // Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyClD1P291fsCdw6-sX7iJaa7h32pD1c0h0",
-  authDomain: "myschool-projectz.firebaseapp.com",
-  projectId: "myschool-projectz",
-  storageBucket: "myschool-projectz.firebasestorage.app",
-  messagingSenderId: "334082049487",
-  appId: "1:334082049487:web:9879c2688e105bb98c7eba",
-  measurementId: "G-NZDYFGMYLQ"
+    apiKey: "AIzaSyClD1P291fsCdw6-sX7iJaa7h32pD1c0h0",
+    authDomain: "myschool-projectz.firebaseapp.com",
+    projectId: "myschool-projectz",
+    messagingSenderId: "334082049487",
+    appId: "1:334082049487:web:9879c2688e105bb98c7eba",
+    measurementId: "G-NZDYFGMYLQ"
 };
+
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 const auth = firebase.auth();
 const db = firebase.firestore();
-const storage = firebase.storage();
 
 // Enable offline persistence
 db.enablePersistence()
@@ -31,7 +30,6 @@ const collections = {
     users: 'users',
     students: 'students',
     results: 'results',
-    documents: 'documents',
     behavior: 'behavior',
     activities: 'activities',
     classes: 'classes',
@@ -75,19 +73,5 @@ const firebaseHelper = {
             .where(field, operator, value)
             .get();
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    },
-
-    // Upload file to Firebase Storage
-    async uploadFile(file, path) {
-        const storageRef = storage.ref(path);
-        await storageRef.put(file);
-        const downloadURL = await storageRef.getDownloadURL();
-        return downloadURL;
-    },
-
-    // Delete file from Firebase Storage
-    async deleteFile(path) {
-        const storageRef = storage.ref(path);
-        await storageRef.delete();
     }
 };

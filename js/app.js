@@ -1,12 +1,16 @@
 // Main Application Controller
 class App {
     constructor() {
+        this.currentUserRole = 'teachers'; // Default tab
         this.init();
     }
 
     init() {
         this.setupNavigation();
         this.setupUserManagement();
+        this.setupStudentsManagement();
+        this.setupClassesManagement();
+        this.setupSubjectsManagement();
     }
 
     setupNavigation() {
@@ -45,14 +49,20 @@ class App {
             case 'studentResults':
                 this.loadStudentResultsForParents();
                 break;
-            case 'documents':
-                documentManager.loadDocuments();
-                break;
             case 'behavior':
                 behaviorManager.loadBehaviorRecords();
                 break;
             case 'users':
                 this.loadUsers();
+                break;
+            case 'students':
+                this.loadStudents();
+                break;
+            case 'classes':
+                this.loadClasses();
+                break;
+            case 'subjects':
+                this.loadSubjects();
                 break;
         }
     }
@@ -157,12 +167,28 @@ class App {
         }
     }
 
+    showUserTab(role) {
+        this.currentUserRole = role;
+        
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        
+        // Reload users with new filter
+        this.loadUsers();
+    }
+
     async loadUsers() {
         if (authManager.currentUser.role !== 'proprietor') return;
 
         try {
             const tbody = document.querySelector('#usersTable tbody');
-            const users = await firebaseHelper.getAll(collections.users);
+            let users = await firebaseHelper.getAll(collections.users);
+            
+            // Filter by role
+            users = users.filter(u => u.role === this.currentUserRole);
             
             tbody.innerHTML = users.map(user => `
                 <tr>
@@ -192,7 +218,7 @@ class App {
             <div class="modal active">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h3>Add New User</h3>
+                        <h3>Add New ${this.currentUserRole.slice(0, -1)}</h3>
                         <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
                     </div>
                     <form id="addUserForm">
@@ -208,15 +234,19 @@ class App {
                             <label>Password</label>
                             <input type="password" name="password" required>
                         </div>
+                        ${this.currentUserRole === 'teachers' ? `
                         <div class="form-group">
-                            <label>Role</label>
-                            <select name="role" required>
-                                <option value="">Select Role</option>
-                                <option value="teacher">Teacher</option>
-                                <option value="parent">Parent</option>
-                                <option value="proprietor">Proprietor</option>
-                            </select>
+                            <label>Subjects (comma separated)</label>
+                            <input type="text" name="subjects" placeholder="Mathematics, English, Science">
                         </div>
+                        ` : ''}
+                        ${this.currentUserRole === 'parents' ? `
+                        <div class="form-group">
+                            <label>Children's Admission Numbers (comma separated)</label>
+                            <input type="text" name="children" placeholder="2024001, 2024002">
+                        </div>
+                        ` : ''}
+                        <input type="hidden" name="role" value="${this.currentUserRole.slice(0, -1)}">
                         <button type="submit" class="btn btn-primary">Add User</button>
                     </form>
                 </div>
@@ -239,8 +269,8 @@ class App {
                 formData.get('password')
             );
             
-            // Save user metadata to Firestore
-            const newUser = {
+            // Prepare user data
+            const userData = {
                 name: formData.get('name'),
                 email: formData.get('email'),
                 role: formData.get('role'),
@@ -248,7 +278,30 @@ class App {
                 createdAt: new Date().toISOString()
             };
 
-            await firebaseHelper.add(collections.users, newUser);
+            // Add role-specific data
+            if (formData.get('subjects')) {
+                userData.subjects = formData.get('subjects').split(',').map(s => s.trim());
+            }
+            
+            if (formData.get('children')) {
+                userData.children = formData.get('children').split(',').map(c => c.trim());
+            }
+
+            // Save user metadata to Firestore
+            await firebaseHelper.add(collections.users, userData);
+
+            // If parent, update students with parent email
+            if (userData.role === 'parent' && userData.children) {
+                for (const childAdmission of userData.children) {
+                    const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                    if (students.length > 0) {
+                        await firebaseHelper.update(collections.students, students[0].id, {
+                            ...students[0],
+                            parent: userData.email
+                        });
+                    }
+                }
+            }
 
             form.closest('.modal').remove();
             this.loadUsers();
@@ -338,6 +391,450 @@ class App {
         } catch (error) {
             console.error('Error deleting user:', error);
             authManager.showNotification('Error deleting user', 'error');
+        }
+    }
+
+    setupStudentsManagement() {
+        const addStudentBtn = document.getElementById('addStudentBtn');
+        if (addStudentBtn) {
+            addStudentBtn.addEventListener('click', () => this.showAddStudentModal());
+        }
+    }
+
+    async loadStudents() {
+        try {
+            const tbody = document.querySelector('#studentsTable tbody');
+            const students = await firebaseHelper.getAll(collections.students);
+            
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>${student.admissionNumber}</td>
+                    <td>${student.name}</td>
+                    <td>${student.class}</td>
+                    <td>${student.gender}</td>
+                    <td>${student.dateOfBirth}</td>
+                    <td>${student.parent || 'Not assigned'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="app.editStudent('${student.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="app.deleteStudent('${student.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading students:', error);
+        }
+    }
+
+    showAddStudentModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Add Student</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="addStudentForm">
+                        <div class="form-group">
+                            <label>Admission Number</label>
+                            <input type="text" name="admissionNumber" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Class</label>
+                            <select name="class" required>
+                                <option value="">Select Class</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Birth</label>
+                            <input type="date" name="dateOfBirth" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Email (Optional)</label>
+                            <input type="email" name="parent">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Student</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        // Load classes into select
+        this.loadClassesIntoSelect('select[name="class"]');
+
+        document.getElementById('addStudentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addStudent(e.target);
+        });
+    }
+
+    async loadClassesIntoSelect(selector) {
+        try {
+            const classes = await firebaseHelper.getAll(collections.classes);
+            const select = document.querySelector(selector);
+            if (select) {
+                select.innerHTML = '<option value="">Select Class</option>' + 
+                    classes.map(cls => `<option value="${cls.name}">${cls.name}</option>`).join('');
+            }
+        } catch (error) {
+            console.error('Error loading classes:', error);
+        }
+    }
+
+    async addStudent(form) {
+        try {
+            const formData = new FormData(form);
+            
+            const newStudent = {
+                admissionNumber: formData.get('admissionNumber'),
+                name: formData.get('name'),
+                class: formData.get('class'),
+                gender: formData.get('gender'),
+                dateOfBirth: formData.get('dateOfBirth'),
+                parent: formData.get('parent') || null,
+                createdAt: new Date().toISOString()
+            };
+
+            await firebaseHelper.add(collections.students, newStudent);
+
+            // Add activity
+            await firebaseHelper.add(collections.activities, {
+                icon: 'fa-user-graduate',
+                text: `New student added: ${newStudent.name}`,
+                time: 'Just now',
+                user: authManager.currentUser.name,
+                createdAt: new Date().toISOString()
+            });
+
+            form.closest('.modal').remove();
+            this.loadStudents();
+            authManager.showNotification('Student added successfully!', 'success');
+        } catch (error) {
+            console.error('Error adding student:', error);
+            authManager.showNotification('Error adding student', 'error');
+        }
+    }
+
+    async editStudent(id) {
+        try {
+            const student = await firebaseHelper.get(collections.students, id);
+            
+            if (!student) return;
+
+            const modal = document.getElementById('modalContainer');
+            modal.innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Edit Student</h3>
+                            <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                        </div>
+                        <form id="editStudentForm">
+                            <div class="form-group">
+                                <label>Admission Number</label>
+                                <input type="text" name="admissionNumber" value="${student.admissionNumber}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" name="name" value="${student.name}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Class</label>
+                                <select name="class" required>
+                                    <option value="">Select Class</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Gender</label>
+                                <select name="gender" required>
+                                    <option value="Male" ${student.gender === 'Male' ? 'selected' : ''}>Male</option>
+                                    <option value="Female" ${student.gender === 'Female' ? 'selected' : ''}>Female</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" name="dateOfBirth" value="${student.dateOfBirth}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Parent Email</label>
+                                <input type="email" name="parent" value="${student.parent || ''}">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Student</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            // Load classes into select
+            this.loadClassesIntoSelect('select[name="class"]');
+            // Set current class
+            setTimeout(() => {
+                document.querySelector(`select[name="class"] option[value="${student.class}"]`).selected = true;
+            }, 100);
+
+            document.getElementById('editStudentForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const updatedStudent = {
+                    ...student,
+                    admissionNumber: formData.get('admissionNumber'),
+                    name: formData.get('name'),
+                    class: formData.get('class'),
+                    gender: formData.get('gender'),
+                    dateOfBirth: formData.get('dateOfBirth'),
+                    parent: formData.get('parent') || null
+                };
+                
+                await firebaseHelper.update(collections.students, id, updatedStudent);
+                e.target.closest('.modal').remove();
+                this.loadStudents();
+                authManager.showNotification('Student updated successfully!', 'success');
+            });
+        } catch (error) {
+            console.error('Error editing student:', error);
+            authManager.showNotification('Error editing student', 'error');
+        }
+    }
+
+    async deleteStudent(id) {
+        if (!confirm('Are you sure you want to delete this student?')) return;
+
+        try {
+            await firebaseHelper.delete(collections.students, id);
+            this.loadStudents();
+            authManager.showNotification('Student deleted successfully!', 'success');
+        } catch (error) {
+            console.error('Error deleting student:', error);
+            authManager.showNotification('Error deleting student', 'error');
+        }
+    }
+
+    setupClassesManagement() {
+        const addClassBtn = document.getElementById('addClassBtn');
+        if (addClassBtn) {
+            addClassBtn.addEventListener('click', () => this.showAddClassModal());
+        }
+    }
+
+    async loadClasses() {
+        try {
+            const classesGrid = document.getElementById('classesGrid');
+            const classes = await firebaseHelper.getAll(collections.classes);
+            
+            classesGrid.innerHTML = classes.map(cls => {
+                const studentsCount = this.getStudentsCount(cls.name);
+                return `
+                    <div class="class-card">
+                        <div class="class-header">
+                            <div class="class-name">${cls.name}</div>
+                            <button class="btn btn-sm btn-danger" onclick="app.deleteClass('${cls.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div class="class-teacher">Class Teacher: ${cls.teacher || 'Not assigned'}</div>
+                        <div class="class-students">${studentsCount} Students</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Error loading classes:', error);
+        }
+    }
+
+    async getStudentsCount(className) {
+        try {
+            const students = await firebaseHelper.query(collections.students, 'class', '==', className);
+            return students.length;
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    showAddClassModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Add Class</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="addClassForm">
+                        <div class="form-group">
+                            <label>Class Name</label>
+                            <input type="text" name="name" placeholder="e.g., JSS 1A" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Class Teacher Email (Optional)</label>
+                            <input type="email" name="teacher" placeholder="teacher@myschool.com">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Class</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('addClassForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addClass(e.target);
+        });
+    }
+
+    async addClass(form) {
+        try {
+            const formData = new FormData(form);
+            
+            const newClass = {
+                name: formData.get('name'),
+                teacher: formData.get('teacher') || null,
+                createdAt: new Date().toISOString()
+            };
+
+            await firebaseHelper.add(collections.classes, newClass);
+
+            // Add activity
+            await firebaseHelper.add(collections.activities, {
+                icon: 'fa-chalkboard',
+                text: `New class added: ${newClass.name}`,
+                time: 'Just now',
+                user: authManager.currentUser.name,
+                createdAt: new Date().toISOString()
+            });
+
+            form.closest('.modal').remove();
+            this.loadClasses();
+            authManager.showNotification('Class added successfully!', 'success');
+        } catch (error) {
+            console.error('Error adding class:', error);
+            authManager.showNotification('Error adding class', 'error');
+        }
+    }
+
+    async deleteClass(id) {
+        if (!confirm('Are you sure you want to delete this class?')) return;
+
+        try {
+            await firebaseHelper.delete(collections.classes, id);
+            this.loadClasses();
+            authManager.showNotification('Class deleted successfully!', 'success');
+        } catch (error) {
+            console.error('Error deleting class:', error);
+            authManager.showNotification('Error deleting class', 'error');
+        }
+    }
+
+    setupSubjectsManagement() {
+        const addSubjectBtn = document.getElementById('addSubjectBtn');
+        if (addSubjectBtn) {
+            addSubjectBtn.addEventListener('click', () => this.showAddSubjectModal());
+        }
+    }
+
+    async loadSubjects() {
+        try {
+            const subjectsGrid = document.getElementById('subjectsGrid');
+            const subjects = await firebaseHelper.getAll(collections.subjects);
+            
+            subjectsGrid.innerHTML = subjects.map(subject => `
+                <div class="subject-card">
+                    <div class="subject-icon">
+                        <i class="fas fa-book"></i>
+                    </div>
+                    <div class="subject-name">${subject.name}</div>
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteSubject('${subject.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading subjects:', error);
+        }
+    }
+
+    showAddSubjectModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Add Subject</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="addSubjectForm">
+                        <div class="form-group">
+                            <label>Subject Name</label>
+                            <input type="text" name="name" placeholder="e.g., Mathematics" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Subject</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('addSubjectForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addSubject(e.target);
+        });
+    }
+
+    async addSubject(form) {
+        try {
+            const formData = new FormData(form);
+            
+            const newSubject = {
+                name: formData.get('name'),
+                createdAt: new Date().toISOString()
+            };
+
+            await firebaseHelper.add(collections.subjects, newSubject);
+
+            // Add activity
+            await firebaseHelper.add(collections.activities, {
+                icon: 'fa-book',
+                text: `New subject added: ${newSubject.name}`,
+                time: 'Just now',
+                user: authManager.currentUser.name,
+                createdAt: new Date().toISOString()
+            });
+
+            form.closest('.modal').remove();
+            this.loadSubjects();
+            authManager.showNotification('Subject added successfully!', 'success');
+        } catch (error) {
+            console.error('Error adding subject:', error);
+            authManager.showNotification('Error adding subject', 'error');
+        }
+    }
+
+    async deleteSubject(id) {
+        if (!confirm('Are you sure you want to delete this subject?')) return;
+
+        try {
+            await firebaseHelper.delete(collections.subjects, id);
+            this.loadSubjects();
+            authManager.showNotification('Subject deleted successfully!', 'success');
+        } catch (error) {
+            console.error('Error deleting subject:', error);
+            authManager.showNotification('Error deleting subject', 'error');
         }
     }
 }

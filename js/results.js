@@ -7,6 +7,7 @@ class ResultsManager {
     init() {
         // Event listeners
         document.getElementById('addResultBtn')?.addEventListener('click', () => this.showAddResultModal());
+        document.getElementById('uploadResultsBtn')?.addEventListener('click', () => this.showUploadResultsModal());
         document.getElementById('addPositionBtn')?.addEventListener('click', () => this.showAddPositionModal());
         document.getElementById('classSelect')?.addEventListener('change', () => this.loadResults());
         document.getElementById('termSelect')?.addEventListener('change', () => this.loadResults());
@@ -182,6 +183,103 @@ class ResultsManager {
             });
         } catch (error) {
             console.error('Error showing add result modal:', error);
+        }
+    }
+
+    showUploadResultsModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active excel-upload-modal">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Upload Results from Excel</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="excel-template">
+                        <p><strong>Excel Format:</strong></p>
+                        <p>Your Excel file should contain the following columns:</p>
+                        <ul>
+                            <li>Student Admission Number (required)</li>
+                            <li>Subject (required)</li>
+                            <li>Score (required)</li>
+                            <li>Grade (optional, will be calculated if not provided)</li>
+                            <li>Term (required)</li>
+                            <li>Session (required)</li>
+                        </ul>
+                        <a href="#" class="template-link" onclick="resultsManager.downloadResultTemplate(); return false;">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                    <div class="upload-area" id="resultUploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="upload-text">Drag and drop your Excel file here</div>
+                        <div class="upload-hint">or click to browse</div>
+                        <input type="file" id="resultFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <button id="processResultBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                </div>
+            </div>
+        `;
+
+        app.setupFileUpload('resultUploadArea', 'resultFileInput', 'processResultBtn', (file) => {
+            this.processResultExcel(file);
+        });
+    }
+
+    downloadResultTemplate() {
+        const templateData = [
+            ['Student Admission Number', 'Subject', 'Score', 'Grade', 'Term', 'Session']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'results_template.xlsx');
+    }
+
+    async processResultExcel(file) {
+        try {
+            const data = await app.readExcelFile(file);
+            const results = [];
+            const students = await firebaseHelper.getAll(collections.students);
+            
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row[0] && row[1] && row[2] && row[4] && row[5]) { // Required fields
+                    // Find student by admission number
+                    const student = students.find(s => s.admissionNumber === row[0]);
+                    if (student) {
+                        const result = {
+                            studentId: student.id,
+                            subject: row[1],
+                            score: parseInt(row[2]),
+                            grade: row[3] || getGrade(parseInt(row[2])),
+                            term: parseInt(row[4]),
+                            session: row[5],
+                            teacher: authManager.currentUser.email,
+                            createdAt: new Date().toISOString()
+                        };
+                        results.push(result);
+                    }
+                }
+            }
+
+            // Add results to Firebase
+            for (const result of results) {
+                await firebaseHelper.add(collections.results, result);
+            }
+
+            document.getElementById('modalContainer').innerHTML = '';
+            this.loadResults();
+            authManager.showNotification(`${results.length} results uploaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            authManager.showNotification('Error processing Excel file', 'error');
         }
     }
 
@@ -402,6 +500,11 @@ class ResultsManager {
                             <button class="btn btn-primary" onclick="resultsManager.downloadStudentResults('${studentId}')">
                                 <i class="fas fa-download"></i> Download PDF
                             </button>
+                            ${authManager.currentUser.role === 'parent' ? `
+                            <button class="btn btn-danger" onclick="resultsManager.deleteStudentResults('${studentId}')">
+                                <i class="fas fa-trash"></i> Delete Results
+                            </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -411,6 +514,25 @@ class ResultsManager {
         } catch (error) {
             console.error('Error viewing student results:', error);
             authManager.showNotification('Error loading results', 'error');
+        }
+    }
+
+    async deleteStudentResults(studentId) {
+        if (!confirm('Are you sure you want to delete all results for this student?')) return;
+
+        try {
+            const studentResults = await firebaseHelper.query(collections.results, 'studentId', '==', studentId);
+            
+            for (const result of studentResults) {
+                await firebaseHelper.delete(collections.results, result.id);
+            }
+            
+            document.getElementById('modalContainer').innerHTML = '';
+            app.loadStudentResultsForParents();
+            authManager.showNotification('Results deleted successfully!', 'success');
+        } catch (error) {
+            console.error('Error deleting results:', error);
+            authManager.showNotification('Error deleting results', 'error');
         }
     }
 

@@ -15,6 +15,7 @@ const sampleData = {
             password: 'teach123', 
             role: 'teacher', 
             status: 'active',
+            subjects: ['Mathematics', 'English Language'],
             createdAt: new Date().toISOString()
         },
         { 
@@ -23,7 +24,7 @@ const sampleData = {
             password: 'parent123', 
             role: 'parent', 
             status: 'active',
-            children: ['student1', 'student2'],
+            children: ['2024001', '2024002'],
             createdAt: new Date().toISOString()
         }
     ],
@@ -31,48 +32,53 @@ const sampleData = {
     students: [
         { 
             id: 'student1',
+            admissionNumber: '2024001',
             name: 'Alice Johnson', 
             class: 'JSS 1A', 
             parent: 'parent@myschool.com',
-            admissionNumber: '2024001',
             dateOfBirth: '2010-05-15',
-            gender: 'Female'
+            gender: 'Female',
+            createdAt: new Date().toISOString()
         },
         { 
             id: 'student2',
+            admissionNumber: '2024002',
             name: 'Bob Smith', 
             class: 'JSS 1A', 
             parent: 'parent@myschool.com',
-            admissionNumber: '2024002',
             dateOfBirth: '2010-08-20',
-            gender: 'Male'
+            gender: 'Male',
+            createdAt: new Date().toISOString()
         },
         { 
             id: 'student3',
+            admissionNumber: '2024003',
             name: 'Charlie Brown', 
             class: 'JSS 1B', 
             parent: 'admin@myschool.com',
-            admissionNumber: '2024003',
             dateOfBirth: '2010-03-10',
-            gender: 'Male'
+            gender: 'Male',
+            createdAt: new Date().toISOString()
         },
         { 
             id: 'student4',
+            admissionNumber: '2023001',
             name: 'Diana Prince', 
             class: 'JSS 2A', 
             parent: 'teacher@myschool.com',
-            admissionNumber: '2023001',
             dateOfBirth: '2009-12-05',
-            gender: 'Female'
+            gender: 'Female',
+            createdAt: new Date().toISOString()
         },
         { 
             id: 'student5',
+            admissionNumber: '2023002',
             name: 'Ethan Hunt', 
             class: 'JSS 2B', 
             parent: 'teacher@myschool.com',
-            admissionNumber: '2023002',
             dateOfBirth: '2009-07-18',
-            gender: 'Male'
+            gender: 'Male',
+            createdAt: new Date().toISOString()
         }
     ],
     
@@ -81,21 +87,21 @@ const sampleData = {
         { name: 'JSS 1B', teacher: 'teacher@myschool.com' },
         { name: 'JSS 2A', teacher: 'teacher@myschool.com' },
         { name: 'JSS 2B', teacher: 'teacher@myschool.com' },
-        { name: 'SSS 1A', teacher: 'teacher@myschool.com' },
-        { name: 'SSS 1B', teacher: 'teacher@myschool.com' }
+        { name: 'SSS 1A', teacher: null },
+        { name: 'SSS 1B', teacher: null }
     ],
     
     subjects: [
-        'Mathematics', 
-        'English Language', 
-        'Basic Science', 
-        'Social Studies', 
-        'Computer Science', 
-        'Physical Education',
-        'Home Economics',
-        'Agricultural Science',
-        'Business Studies',
-        'Fine Art'
+        { name: 'Mathematics' },
+        { name: 'English Language' },
+        { name: 'Basic Science' },
+        { name: 'Social Studies' },
+        { name: 'Computer Science' },
+        { name: 'Physical Education' },
+        { name: 'Home Economics' },
+        { name: 'Agricultural Science' },
+        { name: 'Business Studies' },
+        { name: 'Fine Art' }
     ],
     
     results: [
@@ -106,6 +112,7 @@ const sampleData = {
             grade: 'A', 
             term: 1, 
             session: '2023/2024',
+            position: 2,
             teacher: 'teacher@myschool.com',
             createdAt: new Date().toISOString()
         },
@@ -116,6 +123,7 @@ const sampleData = {
             grade: 'B', 
             term: 1, 
             session: '2023/2024',
+            position: 3,
             teacher: 'teacher@myschool.com',
             createdAt: new Date().toISOString()
         },
@@ -126,6 +134,7 @@ const sampleData = {
             grade: 'A', 
             term: 1, 
             session: '2023/2024',
+            position: 1,
             teacher: 'teacher@myschool.com',
             createdAt: new Date().toISOString()
         },
@@ -136,35 +145,9 @@ const sampleData = {
             grade: 'A', 
             term: 1, 
             session: '2023/2024',
+            position: 1,
             teacher: 'teacher@myschool.com',
             createdAt: new Date().toISOString()
-        }
-    ],
-    
-    documents: [
-        { 
-            name: 'Term 1 Report Card.pdf', 
-            type: 'pdf', 
-            uploadedBy: 'teacher@myschool.com', 
-            date: new Date().toISOString().split('T')[0], 
-            studentId: 'student1',
-            url: '#'
-        },
-        { 
-            name: 'Student ID Card.jpg', 
-            type: 'image', 
-            uploadedBy: 'admin@myschool.com', 
-            date: new Date().toISOString().split('T')[0], 
-            studentId: 'student1',
-            url: '#'
-        },
-        { 
-            name: 'Medical Form.pdf', 
-            type: 'pdf', 
-            uploadedBy: 'parent@myschool.com', 
-            date: new Date().toISOString().split('T')[0], 
-            studentId: 'student2',
-            url: '#'
         }
     ],
     
@@ -204,8 +187,8 @@ const sampleData = {
             createdAt: new Date().toISOString()
         },
         { 
-            icon: 'fa-file', 
-            text: 'Document uploaded: Term 1 Report Card', 
+            icon: 'fa-user-graduate', 
+            text: 'New student registered: Alice Johnson', 
             time: '5 hours ago', 
             user: 'Admin User',
             createdAt: new Date().toISOString()
@@ -241,15 +224,11 @@ async function initializeFirebaseData() {
             }
             
             for (const subject of sampleData.subjects) {
-                await firebaseHelper.add(collections.subjects, { name: subject });
+                await firebaseHelper.add(collections.subjects, subject);
             }
             
             for (const result of sampleData.results) {
                 await firebaseHelper.add(collections.results, result);
-            }
-            
-            for (const document of sampleData.documents) {
-                await firebaseHelper.add(collections.documents, document);
             }
             
             for (const behavior of sampleData.behavior) {

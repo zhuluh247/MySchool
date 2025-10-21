@@ -122,7 +122,12 @@
                         </button>
                     </div>
                     <div class="search-container">
-                        <input type="text" id="studentSearchInput" placeholder="Search students by name, admission number, or class..." class="form-control">
+                        <div class="search-box">
+                            <input type="text" id="studentSearchInput" placeholder="Search students by name, admission number, or class..." class="form-control">
+                            <button id="studentSearchBtn" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
                     </div>
                     <div class="students-table-container">
                         <table id="studentsTable" class="data-table">
@@ -186,7 +191,10 @@
                         <button id="addResultBtn" class="btn btn-primary">
                             <i class="fas fa-plus"></i> Add Results
                         </button>
-                        <button id="addPositionBtn" class="btn btn-success">
+                        <button id="uploadResultsBtn" class="btn btn-success">
+                            <i class="fas fa-file-excel"></i> Upload Excel
+                        </button>
+                        <button id="addPositionBtn" class="btn btn-info">
                             <i class="fas fa-trophy"></i> Add Positions
                         </button>
                     </div>
@@ -219,7 +227,12 @@
                     <h2>Behavior Tracking</h2>
                     <div class="behavior-controls">
                         <div class="searchable-select">
-                            <input type="text" id="studentSearch" placeholder="Search student..." class="form-control">
+                            <div class="search-box">
+                                <input type="text" id="studentSearch" placeholder="Search student..." class="form-control">
+                                <button id="studentSearchBtn" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
                             <select id="studentSelect" class="form-control">
                                 <option value="">Select Student</option>
                             </select>

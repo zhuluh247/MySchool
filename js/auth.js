@@ -233,6 +233,58 @@ class Auth {
     }
 }
 
+async handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const userType = document.getElementById('userType').value;
+
+    try {
+        // Show loading
+        this.showLoading(true);
+
+        // Sign in with Firebase Auth
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        // Get user data from Firestore
+        const userData = await firebaseHelper.query(collections.users, 'email', '==', email);
+        
+        if (userData.length > 0) {
+            const userInfo = userData[0];
+            
+            // Check if role matches
+            if (userInfo.role === userType) {
+                this.currentUser = userInfo;
+                this.showDashboard();
+                this.showNotification('Login successful!', 'success');
+            } else {
+                await auth.signOut();
+                this.showNotification('Role mismatch. Please select the correct role.', 'error');
+            }
+        } else {
+            // Create user document if it doesn't exist
+            const newUser = {
+                name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                email: email,
+                role: userType,
+                status: 'active',
+                createdAt: new Date().toISOString()
+            };
+            
+            await firebaseHelper.add(collections.users, newUser);
+            this.currentUser = newUser;
+            this.showDashboard();
+            this.showNotification('Login successful! User profile created.', 'success');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        this.showNotification('Invalid credentials!', 'error');
+    } finally {
+        this.showLoading(false);
+    }
+}
 // Add notification animations
 const style = document.createElement('style');
 style.textContent = `

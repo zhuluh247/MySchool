@@ -6,6 +6,7 @@ class BehaviorManager {
 
     init() {
         document.getElementById('addBehaviorBtn')?.addEventListener('click', () => this.showAddBehaviorModal());
+        document.getElementById('studentSearch')?.addEventListener('input', (e) => this.filterStudents(e.target.value));
         document.getElementById('studentSelect')?.addEventListener('change', () => this.loadBehaviorRecords());
         
         this.loadStudents();
@@ -22,11 +23,35 @@ class BehaviorManager {
                 students = students.filter(s => s.parent === authManager.currentUser.email);
             }
 
-            studentSelect.innerHTML = '<option value="">Select Student</option>' + 
-                students.map(s => `<option value="${s.id}">${s.name} - ${s.class}</option>`).join('');
+            // Store all students for filtering
+            this.allStudents = students;
+
+            // Populate select
+            this.updateStudentSelect(students);
         } catch (error) {
             console.error('Error loading students:', error);
         }
+    }
+
+    updateStudentSelect(students) {
+        const studentSelect = document.getElementById('studentSelect');
+        studentSelect.innerHTML = '<option value="">Select Student</option>' + 
+            students.map(s => `<option value="${s.id}">${s.name} - ${s.class}</option>`).join('');
+    }
+
+    filterStudents(searchTerm) {
+        if (!searchTerm) {
+            this.updateStudentSelect(this.allStudents);
+            return;
+        }
+
+        const filtered = this.allStudents.filter(student => 
+            student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.class.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        this.updateStudentSelect(filtered);
     }
 
     async loadBehaviorRecords() {

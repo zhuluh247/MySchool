@@ -11,6 +11,7 @@ class App {
         this.setupStudentsManagement();
         this.setupClassesManagement();
         this.setupSubjectsManagement();
+        this.setupSearchButtons();
     }
 
     setupNavigation() {
@@ -25,6 +26,11 @@ class App {
                 // Update active menu
                 menuItems.forEach(mi => mi.classList.remove('active'));
                 item.classList.add('active');
+                
+                // Close sidebar on mobile after navigation
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.remove('active');
+                }
             });
         });
     }
@@ -64,6 +70,81 @@ class App {
             case 'subjects':
                 this.loadSubjects();
                 break;
+            case 'dashboard':
+                authManager.loadDashboardData();
+                break;
+        }
+    }
+
+    setupSearchButtons() {
+        // Student search button
+        const studentSearchBtn = document.getElementById('studentSearchBtn');
+        if (studentSearchBtn) {
+            studentSearchBtn.addEventListener('click', () => {
+                this.searchStudents();
+            });
+        }
+
+        // Student search input enter key
+        const studentSearchInput = document.getElementById('studentSearchInput');
+        if (studentSearchInput) {
+            studentSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.searchStudents();
+                }
+            });
+        }
+
+        // Behavior search button
+        const behaviorSearchBtn = document.getElementById('studentSearchBtn');
+        if (behaviorSearchBtn) {
+            behaviorSearchBtn.addEventListener('click', () => {
+                this.searchBehaviorStudents();
+            });
+        }
+    }
+
+    async searchStudents() {
+        try {
+            const searchTerm = document.getElementById('studentSearchInput').value.trim();
+            if (!searchTerm) {
+                this.loadStudents();
+                return;
+            }
+
+            const students = await firebaseHelper.getAll(collections.students);
+            const filteredStudents = students.filter(student => 
+                student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.class.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            this.displayStudents(filteredStudents);
+        } catch (error) {
+            console.error('Error searching students:', error);
+            authManager.showNotification('Error searching students', 'error');
+        }
+    }
+
+    async searchBehaviorStudents() {
+        try {
+            const searchTerm = document.getElementById('studentSearch').value.trim();
+            if (!searchTerm) {
+                behaviorManager.loadStudents();
+                return;
+            }
+
+            const students = await firebaseHelper.getAll(collections.students);
+            const filteredStudents = students.filter(student => 
+                student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.class.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            behaviorManager.updateStudentSelect(filteredStudents);
+        } catch (error) {
+            console.error('Error searching behavior students:', error);
+            authManager.showNotification('Error searching students', 'error');
         }
     }
 
@@ -162,8 +243,14 @@ class App {
 
     setupUserManagement() {
         const addUserBtn = document.getElementById('addUserBtn');
+        const uploadUsersBtn = document.getElementById('uploadUsersBtn');
+        
         if (addUserBtn) {
             addUserBtn.addEventListener('click', () => this.showAddUserModal());
+        }
+        
+        if (uploadUsersBtn) {
+            uploadUsersBtn.addEventListener('click', () => this.showUploadUsersModal());
         }
     }
 
@@ -257,6 +344,122 @@ class App {
             e.preventDefault();
             this.addUser(e.target);
         });
+    }
+
+    showUploadUsersModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active excel-upload-modal">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Upload ${this.currentUserRole} from Excel</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="excel-template">
+                        <p><strong>Excel Format:</strong></p>
+                        <p>Your Excel file should contain the following columns:</p>
+                        <ul>
+                            <li>Name (required)</li>
+                            <li>Email (required)</li>
+                            <li>Password (required)</li>
+                            ${this.currentUserRole === 'teachers' ? '<li>Subjects (optional, comma separated)</li>' : ''}
+                            ${this.currentUserRole === 'parents' ? '<li>Children (optional, comma separated admission numbers)</li>' : ''}
+                        </ul>
+                        <a href="#" class="template-link" onclick="app.downloadUserTemplate(); return false;">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                    <div class="upload-area" id="userUploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="upload-text">Drag and drop your Excel file here</div>
+                        <div class="upload-hint">or click to browse</div>
+                        <input type="file" id="userFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <button id="processUserBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.setupFileUpload('userUploadArea', 'userFileInput', 'processUserBtn', (file) => {
+            this.processUserExcel(file);
+        });
+    }
+
+    downloadUserTemplate() {
+        const templateData = [
+            ['Name', 'Email', 'Password', this.currentUserRole === 'teachers' ? 'Subjects' : 'Children']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, `${this.currentUserRole}_template.xlsx`);
+    }
+
+    async processUserExcel(file) {
+        try {
+            const data = await this.readExcelFile(file);
+            const users = [];
+            
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row[0] && row[1] && row[2]) { // Name, Email, Password are required
+                    const user = {
+                        name: row[0],
+                        email: row[1],
+                        password: row[2],
+                        role: this.currentUserRole.slice(0, -1),
+                        status: 'active',
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    if (this.currentUserRole === 'teachers' && row[3]) {
+                        user.subjects = row[3].split(',').map(s => s.trim());
+                    }
+                    
+                    if (this.currentUserRole === 'parents' && row[3]) {
+                        user.children = row[3].split(',').map(c => c.trim());
+                    }
+                    
+                    users.push(user);
+                }
+            }
+
+            // Create users in Firebase
+            for (const user of users) {
+                try {
+                    await auth.createUserWithEmailAndPassword(user.email, user.password);
+                    await firebaseHelper.add(collections.users, user);
+                    
+                    // If parent, update students with parent email
+                    if (user.role === 'parent' && user.children) {
+                        for (const childAdmission of user.children) {
+                            const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                            if (students.length > 0) {
+                                await firebaseHelper.update(collections.students, students[0].id, {
+                                    ...students[0],
+                                    parent: user.email
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error creating user ${user.email}:`, error);
+                }
+            }
+
+            document.getElementById('modalContainer').innerHTML = '';
+            this.loadUsers();
+            authManager.showNotification(`${users.length} users uploaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
     }
 
     async addUser(form) {
@@ -396,37 +599,47 @@ class App {
 
     setupStudentsManagement() {
         const addStudentBtn = document.getElementById('addStudentBtn');
+        const uploadStudentsBtn = document.getElementById('uploadStudentsBtn');
+        
         if (addStudentBtn) {
             addStudentBtn.addEventListener('click', () => this.showAddStudentModal());
+        }
+        
+        if (uploadStudentsBtn) {
+            uploadStudentsBtn.addEventListener('click', () => this.showUploadStudentsModal());
         }
     }
 
     async loadStudents() {
         try {
-            const tbody = document.querySelector('#studentsTable tbody');
             const students = await firebaseHelper.getAll(collections.students);
-            
-            tbody.innerHTML = students.map(student => `
-                <tr>
-                    <td>${student.admissionNumber}</td>
-                    <td>${student.name}</td>
-                    <td>${student.class}</td>
-                    <td>${student.gender}</td>
-                    <td>${student.dateOfBirth}</td>
-                    <td>${student.parent || 'Not assigned'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-warning" onclick="app.editStudent('${student.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="app.deleteStudent('${student.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+            this.displayStudents(students);
         } catch (error) {
             console.error('Error loading students:', error);
         }
+    }
+
+    displayStudents(students) {
+        const tbody = document.querySelector('#studentsTable tbody');
+        
+        tbody.innerHTML = students.map(student => `
+            <tr>
+                <td>${student.admissionNumber}</td>
+                <td>${student.name}</td>
+                <td>${student.class}</td>
+                <td>${student.gender}</td>
+                <td>${student.dateOfBirth}</td>
+                <td>${student.parent || 'Not assigned'}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="app.editStudent('${student.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteStudent('${student.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     showAddStudentModal() {
@@ -483,6 +696,97 @@ class App {
             e.preventDefault();
             this.addStudent(e.target);
         });
+    }
+
+    showUploadStudentsModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active excel-upload-modal">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Upload Students from Excel</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="excel-template">
+                        <p><strong>Excel Format:</strong></p>
+                        <p>Your Excel file should contain the following columns:</p>
+                        <ul>
+                            <li>Admission Number (required)</li>
+                            <li>Name (required)</li>
+                            <li>Class (required)</li>
+                            <li>Gender (required)</li>
+                            <li>Date of Birth (required, format: YYYY-MM-DD)</li>
+                            <li>Parent Email (optional)</li>
+                        </ul>
+                        <a href="#" class="template-link" onclick="app.downloadStudentTemplate(); return false;">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                    <div class="upload-area" id="studentUploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="upload-text">Drag and drop your Excel file here</div>
+                        <div class="upload-hint">or click to browse</div>
+                        <input type="file" id="studentFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <button id="processStudentBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.setupFileUpload('studentUploadArea', 'studentFileInput', 'processStudentBtn', (file) => {
+            this.processStudentExcel(file);
+        });
+    }
+
+    downloadStudentTemplate() {
+        const templateData = [
+            ['Admission Number', 'Name', 'Class', 'Gender', 'Date of Birth', 'Parent Email']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'students_template.xlsx');
+    }
+
+    async processStudentExcel(file) {
+        try {
+            const data = await this.readExcelFile(file);
+            const students = [];
+            
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row[0] && row[1] && row[2] && row[3] && row[4]) { // Required fields
+                    const student = {
+                        admissionNumber: row[0],
+                        name: row[1],
+                        class: row[2],
+                        gender: row[3],
+                        dateOfBirth: row[4],
+                        parent: row[5] || null,
+                        createdAt: new Date().toISOString()
+                    };
+                    students.push(student);
+                }
+            }
+
+            // Add students to Firebase
+            for (const student of students) {
+                await firebaseHelper.add(collections.students, student);
+            }
+
+            document.getElementById('modalContainer').innerHTML = '';
+            this.loadStudents();
+            authManager.showNotification(`${students.length} students uploaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
     }
 
     async loadClassesIntoSelect(selector) {
@@ -628,8 +932,14 @@ class App {
 
     setupClassesManagement() {
         const addClassBtn = document.getElementById('addClassBtn');
+        const uploadClassesBtn = document.getElementById('uploadClassesBtn');
+        
         if (addClassBtn) {
             addClassBtn.addEventListener('click', () => this.showAddClassModal());
+        }
+        
+        if (uploadClassesBtn) {
+            uploadClassesBtn.addEventListener('click', () => this.showUploadClassesModal());
         }
     }
 
@@ -698,6 +1008,89 @@ class App {
         });
     }
 
+    showUploadClassesModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active excel-upload-modal">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Upload Classes from Excel</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="excel-template">
+                        <p><strong>Excel Format:</strong></p>
+                        <p>Your Excel file should contain the following columns:</p>
+                        <ul>
+                            <li>Class Name (required)</li>
+                            <li>Class Teacher Email (optional)</li>
+                        </ul>
+                        <a href="#" class="template-link" onclick="app.downloadClassTemplate(); return false;">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                    <div class="upload-area" id="classUploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="upload-text">Drag and drop your Excel file here</div>
+                        <div class="upload-hint">or click to browse</div>
+                        <input type="file" id="classFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <button id="processClassBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.setupFileUpload('classUploadArea', 'classFileInput', 'processClassBtn', (file) => {
+            this.processClassExcel(file);
+        });
+    }
+
+    downloadClassTemplate() {
+        const templateData = [
+            ['Class Name', 'Class Teacher Email']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'classes_template.xlsx');
+    }
+
+    async processClassExcel(file) {
+        try {
+            const data = await this.readExcelFile(file);
+            const classes = [];
+            
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row[0]) { // Class name is required
+                    const cls = {
+                        name: row[0],
+                        teacher: row[1] || null,
+                        createdAt: new Date().toISOString()
+                    };
+                    classes.push(cls);
+                }
+            }
+
+            // Add classes to Firebase
+            for (const cls of classes) {
+                await firebaseHelper.add(collections.classes, cls);
+            }
+
+            document.getElementById('modalContainer').innerHTML = '';
+            this.loadClasses();
+            authManager.showNotification(`${classes.length} classes uploaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
+    }
+
     async addClass(form) {
         try {
             const formData = new FormData(form);
@@ -743,8 +1136,14 @@ class App {
 
     setupSubjectsManagement() {
         const addSubjectBtn = document.getElementById('addSubjectBtn');
+        const uploadSubjectsBtn = document.getElementById('uploadSubjectsBtn');
+        
         if (addSubjectBtn) {
             addSubjectBtn.addEventListener('click', () => this.showAddSubjectModal());
+        }
+        
+        if (uploadSubjectsBtn) {
+            uploadSubjectsBtn.addEventListener('click', () => this.showUploadSubjectsModal());
         }
     }
 
@@ -796,6 +1195,87 @@ class App {
         });
     }
 
+    showUploadSubjectsModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active excel-upload-modal">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Upload Subjects from Excel</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="excel-template">
+                        <p><strong>Excel Format:</strong></p>
+                        <p>Your Excel file should contain the following columns:</p>
+                        <ul>
+                            <li>Subject Name (required)</li>
+                        </ul>
+                        <a href="#" class="template-link" onclick="app.downloadSubjectTemplate(); return false;">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                    <div class="upload-area" id="subjectUploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="upload-text">Drag and drop your Excel file here</div>
+                        <div class="upload-hint">or click to browse</div>
+                        <input type="file" id="subjectFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <button id="processSubjectBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.setupFileUpload('subjectUploadArea', 'subjectFileInput', 'processSubjectBtn', (file) => {
+            this.processSubjectExcel(file);
+        });
+    }
+
+    downloadSubjectTemplate() {
+        const templateData = [
+            ['Subject Name']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'subjects_template.xlsx');
+    }
+
+    async processSubjectExcel(file) {
+        try {
+            const data = await this.readExcelFile(file);
+            const subjects = [];
+            
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row[0]) { // Subject name is required
+                    const subject = {
+                        name: row[0],
+                        createdAt: new Date().toISOString()
+                    };
+                    subjects.push(subject);
+                }
+            }
+
+            // Add subjects to Firebase
+            for (const subject of subjects) {
+                await firebaseHelper.add(collections.subjects, subject);
+            }
+
+            document.getElementById('modalContainer').innerHTML = '';
+            this.loadSubjects();
+            authManager.showNotification(`${subjects.length} subjects uploaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
+    }
+
     async addSubject(form) {
         try {
             const formData = new FormData(form);
@@ -836,6 +1316,88 @@ class App {
             console.error('Error deleting subject:', error);
             authManager.showNotification('Error deleting subject', 'error');
         }
+    }
+
+    setupFileUpload(areaId, inputId, buttonId, callback) {
+        const uploadArea = document.getElementById(areaId);
+        const fileInput = document.getElementById(inputId);
+        const processBtn = document.getElementById(buttonId);
+        let selectedFile = null;
+
+        // Click on upload area to open file dialog
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                uploadArea.innerHTML = `
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Selected: ${file.name}</div>
+                    <div class="upload-hint">Click to select another file</div>
+                `;
+                processBtn.style.display = 'block';
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                selectedFile = file;
+                uploadArea.innerHTML = `
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Selected: ${file.name}</div>
+                    <div class="upload-hint">Click to select another file</div>
+                `;
+                processBtn.style.display = 'block';
+            }
+        });
+
+        // Process button
+        processBtn.addEventListener('click', () => {
+            if (selectedFile) {
+                callback(selectedFile);
+            }
+        });
+    }
+
+    readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    resolve(jsonData);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
     }
 }
 

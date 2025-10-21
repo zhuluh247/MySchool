@@ -105,13 +105,13 @@ class BehaviorManager {
                             <small>Date: ${record.date}</small>
                             <small>Recorded by: ${record.recordedBy}</small>
                         </div>
-                        ${authManager.currentUser.role !== 'parent' ? `
-                            <div class="behavior-actions">
+                        <div class="behavior-actions">
+                            ${authManager.currentUser.role === 'parent' || authManager.currentUser.role === 'proprietor' ? `
                                 <button class="btn btn-sm btn-danger" onclick="behaviorManager.deleteBehavior('${record.id}')">
                                     <i class="fas fa-trash"></i> Delete
                                 </button>
-                            </div>
-                        ` : ''}
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
             `;

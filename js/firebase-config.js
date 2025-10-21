@@ -1,13 +1,13 @@
 // Firebase Configuration
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyClD1P291fsCdw6-sX7iJaa7h32pD1c0h0",
+  authDomain: "myschool-projectz.firebaseapp.com",
+  projectId: "myschool-projectz",
+  storageBucket: "myschool-projectz.firebasestorage.app",
+  messagingSenderId: "334082049487",
+  appId: "1:334082049487:web:9879c2688e105bb98c7eba",
+  measurementId: "G-NZDYFGMYLQ"
 };
-
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 

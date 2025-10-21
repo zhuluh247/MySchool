@@ -8,6 +8,7 @@ class Auth {
     init() {
         const loginForm = document.getElementById('loginForm');
         const logoutBtn = document.getElementById('logoutBtn');
+        const menuToggle = document.getElementById('menuToggle');
 
         if (loginForm) {
             loginForm.addEventListener('submit', (e) => this.handleLogin(e));
@@ -15,6 +16,10 @@ class Auth {
 
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.logout());
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => this.toggleSidebar());
         }
 
         // Check if user is already logged in
@@ -25,6 +30,11 @@ class Auth {
                 this.showLoginScreen();
             }
         });
+    }
+
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('active');
     }
 
     async handleLogin(e) {
@@ -153,21 +163,87 @@ class Auth {
 
     async loadDashboardData() {
         try {
-            // Get all data
-            const students = await firebaseHelper.getAll(collections.students);
-            const users = await firebaseHelper.getAll(collections.users);
-            const subjects = await firebaseHelper.getAll(collections.subjects);
-            const results = await firebaseHelper.getAll(collections.results);
-            const activities = await firebaseHelper.getAll(collections.activities);
+            const dashboardContent = document.getElementById('dashboardContent');
+            const role = this.currentUser.role;
             
-            // Update stats
-            document.getElementById('totalStudents').textContent = students.length;
-            document.getElementById('totalTeachers').textContent = users.filter(u => u.role === 'teacher').length;
-            document.getElementById('totalSubjects').textContent = subjects.length;
-            document.getElementById('totalResults').textContent = results.length;
-
-            // Load recent activities
-            this.loadActivities(activities);
+            if (role === 'parent') {
+                // Load parent-specific dashboard
+                const students = await firebaseHelper.query(collections.students, 'parent', '==', this.currentUser.email);
+                const results = await firebaseHelper.getAll(collections.results);
+                
+                // Filter results for parent's children
+                const studentIds = students.map(s => s.id);
+                const childrenResults = results.filter(r => studentIds.includes(r.studentId));
+                
+                dashboardContent.innerHTML = `
+                    <div class="parent-dashboard">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <i class="fas fa-users"></i>
+                                <h3>${students.length}</h3>
+                                <p>Total Children</p>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-file-alt"></i>
+                                <h3>${childrenResults.length}</h3>
+                                <p>Total Results</p>
+                            </div>
+                        </div>
+                        <div class="quick-actions">
+                            <div class="action-card" onclick="app.showSection('studentResults')">
+                                <i class="fas fa-file-alt"></i>
+                                <h3>View Results</h3>
+                                <p>Check your children's academic performance</p>
+                            </div>
+                            <div class="action-card" onclick="app.showSection('behavior')">
+                                <i class="fas fa-user-check"></i>
+                                <h3>Behavior Tracking</h3>
+                                <p>Monitor behavior records</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Load proprietor/teacher dashboard
+                const students = await firebaseHelper.getAll(collections.students);
+                const users = await firebaseHelper.getAll(collections.users);
+                const subjects = await firebaseHelper.getAll(collections.subjects);
+                const results = await firebaseHelper.getAll(collections.results);
+                const activities = await firebaseHelper.getAll(collections.activities);
+                
+                // Update stats
+                dashboardContent.innerHTML = `
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <i class="fas fa-users"></i>
+                            <h3>${students.length}</h3>
+                            <p>Total Students</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <h3>${users.filter(u => u.role === 'teacher').length}</h3>
+                            <p>Total Teachers</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-book"></i>
+                            <h3>${subjects.length}</h3>
+                            <p>Subjects</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-file-alt"></i>
+                            <h3>${results.length}</h3>
+                            <p>Results Uploaded</p>
+                        </div>
+                    </div>
+                    <div class="recent-activity">
+                        <h3>Recent Activity</h3>
+                        <div id="activityList" class="activity-list"></div>
+                    </div>
+                `;
+                
+                // Load recent activities
+                this.loadActivities(activities);
+            }
         } catch (error) {
             console.error('Error loading dashboard data:', error);
         }
@@ -175,6 +251,7 @@ class Auth {
 
     loadActivities(activities) {
         const activitiesList = document.getElementById('activityList');
+        if (!activitiesList) return;
         
         // Sort by date (most recent first)
         activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: myschool-results
+    env: static
+    buildCommand: |
+      chmod +x render-build.sh
+      ./render-build.sh
+    publishDir: .
+    staticPublishPath: .
+    envVars:
+      - key: FIREBASE_API_KEY
+        value: "AIzaSyClD1P291fsCdw6-sX7iJaa7h32pD1c0h0"
+        type: secret
+      - key: FIREBASE_AUTH_DOMAIN
+        value: "myschool-projectz.firebaseapp.com"
+        type: secret
+      - key: FIREBASE_PROJECT_ID
+        value: "myschool-projectz"
+        type: secret
+      - key: FIREBASE_STORAGE_BUCKET
+        value: "myschool-projectz.firebasestorage.app"
+        type: secret
+      - key: FIREBASE_MESSAGING_SENDER_ID
+        value: "334082049487"
+        type: secret
+      - key: FIREBASE_APP_ID
+        value: "1:334082049487:web:9879c2688e105bb98c7eba"
+        type: secret
+      - key: FIREBASE_MEASUREMENT_ID
+        value: "G-NZDYFGMYLQ"
+        type: secret

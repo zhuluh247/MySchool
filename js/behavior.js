@@ -77,46 +77,50 @@ class BehaviorManager {
     }
 
     async displayBehaviorRecords(records) {
-        const behaviorList = document.getElementById('behaviorList');
-        
-        if (records.length === 0) {
-            behaviorList.innerHTML = '<p class="text-center">No behavior records found</p>';
-            return;
-        }
+    const behaviorList = document.getElementById('behaviorList');
+    
+    if (records.length === 0) {
+        behaviorList.innerHTML = '<p class="text-center">No behavior records found</p>';
+        return;
+    }
 
-        // Get student names
-        const students = await firebaseHelper.getAll(collections.students);
+    // Get student names
+    const students = await firebaseHelper.getAll(collections.students);
+    
+    // Sort by date (most recent first)
+    records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    behaviorList.innerHTML = records.map(record => {
+        const student = students.find(s => s.id === record.studentId);
         
-        // Sort by date (most recent first)
-        records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        // Only show delete button for proprietor and teacher, not parent
+        const canDelete = authManager.currentUser.role !== 'parent';
         
-        behaviorList.innerHTML = records.map(record => {
-            const student = students.find(s => s.id === record.studentId);
-            
-            return `
-                <div class="behavior-item">
-                    <div class="behavior-card">
-                        <div class="behavior-header">
-                            <span class="behavior-type ${record.type}">${record.type.toUpperCase()}</span>
-                            <strong>${student ? student.name : 'Unknown'}</strong>
-                        </div>
-                        <p>${record.description}</p>
-                        <div class="behavior-meta">
-                            <small>Date: ${record.date}</small>
-                            <small>Recorded by: ${record.recordedBy}</small>
-                        </div>
-                        <div class="behavior-actions">
-                            ${authManager.currentUser.role === 'parent' || authManager.currentUser.role === 'proprietor' ? `
-                                <button class="btn btn-sm btn-danger" onclick="behaviorManager.deleteBehavior('${record.id}')">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            ` : ''}
-                        </div>
+        return `
+            <div class="behavior-item">
+                <div class="behavior-card">
+                    <div class="behavior-header">
+                        <span class="behavior-type ${record.type}">${record.type.toUpperCase()}</span>
+                        <strong>${student ? student.name : 'Unknown'}</strong>
+                    </div>
+                    <p>${record.description}</p>
+                    <div class="behavior-meta">
+                        <small>Date: ${record.date}</small>
+                        <small>Recorded by: ${record.recordedBy}</small>
+                    </div>
+                    <div class="behavior-actions">
+                        ${canDelete ? `
+                            <button class="btn btn-sm btn-danger" onclick="behaviorManager.deleteBehavior('${record.id}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
-            `;
-        }).join('');
+            </div>
+        `;
+    }).join('');
     }
+    
 
     async showAddBehaviorModal() {
         try {

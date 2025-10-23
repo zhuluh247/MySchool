@@ -973,6 +973,54 @@ async loadClasses() {
     }
 }
 
+    async editClass(id) {
+    try {
+        const cls = await firebaseHelper.get(collections.classes, id);
+        
+        if (!cls) return;
+
+        const modal = document.getElementById('modalContainer');
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Class</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="editClassForm">
+                        <div class="form-group">
+                            <label>Class Name</label>
+                            <input type="text" name="name" value="${cls.name}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Class Teacher Email (Optional)</label>
+                            <input type="email" name="teacher" value="${cls.teacher || ''}" placeholder="teacher@myschool.com">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Class</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('editClassForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const updatedClass = {
+                ...cls,
+                name: formData.get('name'),
+                teacher: formData.get('teacher') || null
+            };
+            
+            await firebaseHelper.update(collections.classes, id, updatedClass);
+            e.target.closest('.modal').remove();
+            this.loadClasses();
+            authManager.showNotification('Class updated successfully!', 'success');
+        });
+    } catch (error) {
+        console.error('Error editing class:', error);
+        authManager.showNotification('Error editing class', 'error');
+    }
+}
     async getStudentsCount(className) {
         try {
             const students = await firebaseHelper.query(collections.students, 'class', '==', className);

@@ -36,46 +36,454 @@ class App {
     }
 
     showSection(sectionId) {
-        // Hide all sections
-        document.querySelectorAll('.section').forEach(section => {
-            section.classList.remove('active');
-        });
-        
-        // Show selected section
-        const targetSection = document.getElementById(sectionId);
-        if (targetSection) {
-            targetSection.classList.add('active');
-        }
-
-        // Load section-specific data
-        switch(sectionId) {
-            case 'results':
-                resultsManager.loadResults();
-                break;
-            case 'studentResults':
-                this.loadStudentResultsForParents();
-                break;
-            case 'behavior':
-                behaviorManager.loadBehaviorRecords();
-                break;
-            case 'users':
-                this.loadUsers();
-                break;
-            case 'students':
-                this.loadStudents();
-                break;
-            case 'classes':
-                this.loadClasses();
-                break;
-            case 'subjects':
-                this.loadSubjects();
-                break;
-            case 'dashboard':
-                authManager.loadDashboardData();
-                break;
-        }
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Show selected section
+    const targetSection = document.getElementById(sectionId);
+    if (targetSection) {
+        targetSection.classList.add('active');
     }
 
+    // Load section-specific data
+    switch(sectionId) {
+        case 'results':
+            resultsManager.loadResults();
+            break;
+        case 'studentResults':
+            this.loadStudentResultsForParents();
+            break;
+        case 'behavior':
+            behaviorManager.loadBehaviorRecords();
+            break;
+        case 'teachers':
+            this.loadTeachers();
+            break;
+        case 'parents':
+            this.loadParents();
+            break;
+        case 'classSubjects':
+            this.loadClassSubjects();
+            break;
+        case 'students':
+            this.loadStudents();
+            break;
+        case 'classes':
+            this.loadClasses();
+            break;
+        case 'subjects':
+            this.loadSubjects();
+            break;
+        case 'dashboard':
+            authManager.loadDashboardData();
+            break;
+    }
+}
+    setupTeacherManagement() {
+    const addTeacherBtn = document.getElementById('addTeacherBtn');
+    const uploadTeachersBtn = document.getElementById('uploadTeachersBtn');
+    
+    if (addTeacherBtn) {
+        addTeacherBtn.addEventListener('click', () => this.showAddTeacherModal());
+    }
+    
+    if (uploadTeachersBtn) {
+        uploadTeachersBtn.addEventListener('click', () => this.showUploadTeachersModal());
+    }
+}
+
+setupParentManagement() {
+    const addParentBtn = document.getElementById('addParentBtn');
+    const uploadParentsBtn = document.getElementById('uploadParentsBtn');
+    
+    if (addParentBtn) {
+        addParentBtn.addEventListener('click', () => this.showAddParentModal());
+    }
+    
+    if (uploadParentsBtn) {
+        uploadParentsBtn.addEventListener('click', () => this.showUploadParentsModal());
+    }
+}
+
+setupClassSubjectsManagement() {
+    const assignSubjectsBtn = document.getElementById('assignSubjectsBtn');
+    const classSelect = document.getElementById('classSelectForSubjects');
+    
+    if (assignSubjectsBtn) {
+        assignSubjectsBtn.addEventListener('click', () => this.showAssignSubjectsModal());
+    }
+    
+    if (classSelect) {
+        classSelect.addEventListener('change', () => this.loadClassSubjects());
+    }
+    
+    // Load classes into select
+    this.loadClassesIntoSelect('classSelectForSubjects');
+}
+
+async loadTeachers() {
+    try {
+        const tbody = document.querySelector('#teachersTable tbody');
+        const teachers = await firebaseHelper.query(collections.users, 'role', '==', 'teacher');
+        
+        tbody.innerHTML = teachers.map(teacher => `
+            <tr>
+                <td>${teacher.name}</td>
+                <td>${teacher.email}</td>
+                <td>${teacher.assignedClasses ? teacher.assignedClasses.join(', ') : 'Not assigned'}</td>
+                <td>${teacher.subjects ? teacher.subjects.join(', ') : 'Not assigned'}</td>
+                <td><span class="badge badge-${teacher.status === 'active' ? 'success' : 'danger'}">${teacher.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="app.editTeacher('${teacher.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteTeacher('${teacher.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading teachers:', error);
+    }
+}
+
+async loadParents() {
+    try {
+        const tbody = document.querySelector('#parentsTable tbody');
+        const parents = await firebaseHelper.query(collections.users, 'role', '==', 'parent');
+        
+        tbody.innerHTML = parents.map(parent => `
+            <tr>
+                <td>${parent.name}</td>
+                <td>${parent.email}</td>
+                <td>${parent.children ? parent.children.join(', ') : 'No children'}</td>
+                <td><span class="badge badge-${parent.status === 'active' ? 'success' : 'danger'}">${parent.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="app.editParent('${parent.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteParent('${parent.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading parents:', error);
+    }
+}
+
+async loadClassSubjects() {
+    try {
+        const classSelect = document.getElementById('classSelectForSubjects');
+        const contentDiv = document.getElementById('classSubjectsContent');
+        const selectedClass = classSelect.value;
+        
+        if (!selectedClass) {
+            contentDiv.innerHTML = '<p class="text-center">Please select a class</p>';
+            return;
+        }
+        
+        // Get class subjects configuration
+        const classSubjects = await firebaseHelper.query(collections.classSubjects, 'className', '==', selectedClass);
+        
+        if (classSubjects.length === 0) {
+            contentDiv.innerHTML = `
+                <div class="no-subjects">
+                    <p>No subjects assigned to this class yet.</p>
+                    <button class="btn btn-primary" onclick="app.showAssignSubjectsModal()">
+                        <i class="fas fa-plus"></i> Assign Subjects
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Get subject details
+        const subjects = await firebaseHelper.getAll(collections.subjects);
+        
+        contentDiv.innerHTML = `
+            <div class="assigned-subjects">
+                <h3>Subjects for ${selectedClass}</h3>
+                <div class="subjects-list">
+                    ${classSubjects.map(cs => {
+                        const subject = subjects.find(s => s.id === cs.subjectId);
+                        return `
+                            <div class="subject-item">
+                                <span class="subject-name">${subject ? subject.name : 'Unknown'}</span>
+                                <button class="btn btn-sm btn-danger" onclick="app.removeClassSubject('${cs.id}')">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <button class="btn btn-primary" onclick="app.showAssignSubjectsModal()">
+                    <i class="fas fa-plus"></i> Add More Subjects
+                </button>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading class subjects:', error);
+    }
+}
+
+showAddTeacherModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Add Teacher</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="addTeacherForm">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Assigned Classes (Hold Ctrl/Cmd to select multiple)</label>
+                        <select name="assignedClasses" multiple required>
+                            <!-- Classes will be loaded here -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Subjects (Hold Ctrl/Cmd to select multiple)</label>
+                        <select name="subjects" multiple required>
+                            <!-- Subjects will be loaded here -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Teacher</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    // Load classes and subjects into selects
+    this.loadClassesIntoSelect('select[name="assignedClasses"]');
+    this.loadSubjectsIntoSelect('select[name="subjects"]');
+
+    document.getElementById('addTeacherForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addTeacher(e.target);
+    });
+}
+
+async addTeacher(form) {
+    try {
+        const formData = new FormData(form);
+        const assignedClasses = Array.from(formData.getAll('assignedClasses'));
+        const subjects = Array.from(formData.getAll('subjects'));
+        
+        // Create user in Firebase Auth
+        const userCredential = await auth.createUserWithEmailAndPassword(
+            formData.get('email'),
+            formData.get('password')
+        );
+        
+        // Prepare user data
+        const userData = {
+            name: formData.get('name'),
+            email: formData.get('email'),
+            role: 'teacher',
+            status: 'active',
+            assignedClasses: assignedClasses,
+            subjects: subjects,
+            createdAt: new Date().toISOString()
+        };
+
+        // Save user metadata to Firestore
+        await firebaseHelper.add(collections.users, userData);
+
+        form.closest('.modal').remove();
+        this.loadTeachers();
+        authManager.showNotification('Teacher added successfully!', 'success');
+    } catch (error) {
+        console.error('Error adding teacher:', error);
+        authManager.showNotification('Error adding teacher: ' + error.message, 'error');
+    }
+}
+
+showAddParentModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Add Parent</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="addParentForm">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Children's Admission Numbers (comma separated)</label>
+                        <input type="text" name="children" placeholder="2024001, 2024002">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Parent</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('addParentForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addParent(e.target);
+    });
+}
+
+async addParent(form) {
+    try {
+        const formData = new FormData(form);
+        
+        // Create user in Firebase Auth
+        const userCredential = await auth.createUserWithEmailAndPassword(
+            formData.get('email'),
+            formData.get('password')
+        );
+        
+        // Prepare user data
+        const userData = {
+            name: formData.get('name'),
+            email: formData.get('email'),
+            role: 'parent',
+            status: 'active',
+            children: formData.get('children') ? formData.get('children').split(',').map(c => c.trim()) : [],
+            createdAt: new Date().toISOString()
+        };
+
+        // Save user metadata to Firestore
+        await firebaseHelper.add(collections.users, userData);
+
+        // Update students with parent email
+        if (userData.children) {
+            for (const childAdmission of userData.children) {
+                const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                if (students.length > 0) {
+                    await firebaseHelper.update(collections.students, students[0].id, {
+                        ...students[0],
+                        parent: userData.email
+                    });
+                }
+            }
+        }
+
+        form.closest('.modal').remove();
+        this.loadParents();
+        authManager.showNotification('Parent added successfully!', 'success');
+    } catch (error) {
+        console.error('Error adding parent:', error);
+        authManager.showNotification('Error adding parent: ' + error.message, 'error');
+    }
+}
+
+showAssignSubjectsModal() {
+    const modal = document.getElementById('modalContainer');
+    const classSelect = document.getElementById('classSelectForSubjects');
+    const selectedClass = classSelect.value;
+    
+    if (!selectedClass) {
+        authManager.showNotification('Please select a class first', 'error');
+        return;
+    }
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Assign Subjects to ${selectedClass}</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="assignSubjectsForm">
+                    <input type="hidden" name="className" value="${selectedClass}">
+                    <div class="form-group">
+                        <label>Select Subjects (Hold Ctrl/Cmd to select multiple)</label>
+                        <select name="subjects" multiple required>
+                            <!-- Subjects will be loaded here -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Assign Subjects</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    // Load subjects into select
+    this.loadSubjectsIntoSelect('select[name="subjects"]');
+
+    document.getElementById('assignSubjectsForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.assignSubjects(e.target);
+    });
+}
+
+async assignSubjects(form) {
+    try {
+        const formData = new FormData(form);
+        const className = formData.get('className');
+        const subjectIds = Array.from(formData.getAll('subjects'));
+        
+        // Clear existing subjects for this class
+        const existingClassSubjects = await firebaseHelper.query(collections.classSubjects, 'className', '==', className);
+        for (const cs of existingClassSubjects) {
+            await firebaseHelper.delete(collections.classSubjects, cs.id);
+        }
+        
+        // Add new subject assignments
+        for (const subjectId of subjectIds) {
+            await firebaseHelper.add(collections.classSubjects, {
+                className: className,
+                subjectId: subjectId,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        form.closest('.modal').remove();
+        this.loadClassSubjects();
+        authManager.showNotification('Subjects assigned successfully!', 'success');
+    } catch (error) {
+        console.error('Error assigning subjects:', error);
+        authManager.showNotification('Error assigning subjects', 'error');
+    }
+}
+
+async loadSubjectsIntoSelect(selector) {
+    try {
+        const subjects = await firebaseHelper.getAll(collections.subjects);
+        const select = document.querySelector(selector);
+        if (select) {
+            select.innerHTML = subjects.map(subject => `
+                <option value="${subject.id}">${subject.name}</option>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading subjects:', error);
+    }
+}
     setupSearchButtons() {
     // Student search - automatic on input
     const studentSearchInput = document.getElementById('studentSearchInput');

@@ -955,3 +955,1112 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing app...');
     window.app = new App();
 });
+
+// Add these functions to the App class in js/app.js
+
+showAddStudentModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Student</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="addStudentForm">
+                    <div class="form-group">
+                        <label>Admission Number</label>
+                        <input type="text" name="admissionNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Class</label>
+                        <select name="class" required>
+                            <option value="">Select Class</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select name="gender" required>
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth</label>
+                        <input type="date" name="dateOfBirth" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Parent Email (Optional)</label>
+                        <input type="email" name="parent">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Student</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    // Load classes into select
+    this.loadClassesIntoSelect('select[name="class"]');
+
+    document.getElementById('addStudentForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addStudent(e.target);
+    });
+}
+
+async addStudent(form) {
+    try {
+        const formData = new FormData(form);
+        
+        const newStudent = {
+            admissionNumber: formData.get('admissionNumber'),
+            name: formData.get('name'),
+            class: formData.get('class'),
+            gender: formData.get('gender'),
+            dateOfBirth: formData.get('dateOfBirth'),
+            parent: formData.get('parent') || null,
+            createdAt: new Date().toISOString()
+        };
+
+        await firebaseHelper.add(collections.students, newStudent);
+
+        // Add activity
+        await firebaseHelper.add(collections.activities, {
+            icon: 'fa-user-graduate',
+            text: `New student added: ${newStudent.name}`,
+            time: 'Just now',
+            user: authManager.currentUser.name,
+            createdAt: new Date().toISOString()
+        });
+
+        form.closest('.modal').remove();
+        this.loadStudents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Student added successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error adding student:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error adding student', 'error');
+        }
+    }
+
+async editStudent(id) {
+    try {
+        const student = await firebaseHelper.get(collections.students, id);
+        
+        if (!student) return;
+
+        const modal = document.getElementById('modalContainer');
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Student</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="editStudentForm">
+                        <div class="form-group">
+                            <label>Admission Number</label>
+                            <input type="text" name="admissionNumber" value="${student.admissionNumber}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" value="${student.name}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Class</label>
+                            <select name="class" required>
+                                <option value="">Select Class</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select name="gender" required>
+                                <option value="Male" ${student.gender === 'Male' ? 'selected' : ''}>Male</option>
+                                <option value="Female" ${student.gender === 'Female' ? 'selected' : ''}>Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Birth</label>
+                            <input type="date" name="dateOfBirth" value="${student.dateOfBirth}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Email</label>
+                            <input type="email" name="parent" value="${student.parent || ''}">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Student</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        // Load classes into select
+        this.loadClassesIntoSelect('select[name="class"]');
+        // Set current class
+        setTimeout(() => {
+            document.querySelector(`select[name="class"] option[value="${student.class}"]`).selected = true;
+        }, 100);
+
+        document.getElementById('editStudentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const updatedStudent = {
+                ...student,
+                admissionNumber: formData.get('admissionNumber'),
+                name: formData.get('name'),
+                class: formData.get('class'),
+                gender: formData.get('gender'),
+                dateOfBirth: formData.get('dateOfBirth'),
+                parent: formData.get('parent') || null
+            };
+            
+            await firebaseHelper.update(collections.students, id, updatedStudent);
+            e.target.closest('.modal').remove();
+            this.loadStudents();
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Student updated successfully!', 'success');
+            }
+        });
+    } catch (error) {
+        console.error('Error editing student:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error editing student', 'error');
+        }
+    }
+
+async deleteStudent(id) {
+    if (!confirm('Are you sure you want to delete this student?')) return;
+
+    try {
+        await firebaseHelper.delete(collections.students, id);
+        this.loadStudents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Student deleted successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting student:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error deleting student', 'error');
+        }
+    }
+
+showAddClassModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Class</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="addClassForm">
+                    <div class="form-group">
+                        <label>Class Name</label>
+                        <input type="text" name="name" placeholder="e.g., JSS 1A" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Class Teacher Email (Optional)</label>
+                        <input type="email" name="teacher" placeholder="teacher@myschool.com">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Class</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('addClassForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addClass(e.target);
+    });
+}
+
+async addClass(form) {
+    try {
+        const formData = new FormData(form);
+        
+        const newClass = {
+            name: formData.get('name'),
+            teacher: formData.get('teacher') || null,
+            createdAt: new Date().toISOString()
+        };
+
+        await firebaseHelper.add(collections.classes, newClass);
+
+        // Add activity
+        await firebaseHelper.add(collections.activities, {
+            icon: 'fa-chalkboard',
+            text: `New class added: ${newClass.name}`,
+            time: 'Just now',
+            user: authManager.currentUser.name,
+            createdAt: new Date().toISOString()
+        });
+
+        form.closest('.modal').remove();
+        this.loadClasses();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Class added successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error adding class:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error adding class', 'error');
+        }
+    }
+
+async editClass(id) {
+    try {
+        const cls = await firebaseHelper.get(collections.classes, id);
+        
+        if (!cls) return;
+
+        const modal = document.getElementById('modalContainer');
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Class</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="editClassForm">
+                        <div class="form-group">
+                            <label>Class Name</label>
+                            <input type="text" name="name" value="${cls.name}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Class Teacher Email</label>
+                            <input type="email" name="teacher" value="${cls.teacher || ''}" placeholder="teacher@myschool.com">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Class</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('editClassForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const updatedClass = {
+                ...cls,
+                name: formData.get('name'),
+                teacher: formData.get('teacher') || null
+            };
+            
+            await firebaseHelper.update(collections.classes, id, updatedClass);
+            e.target.closest('.modal').remove();
+            this.loadClasses();
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Class updated successfully!', 'success');
+            }
+        });
+    } catch (error) {
+        console.error('Error editing class:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error editing class', 'error');
+        }
+    }
+
+async deleteClass(id) {
+    if (!confirm('Are you sure you want to delete this class?')) return;
+
+    try {
+        await firebaseHelper.delete(collections.classes, id);
+        this.loadClasses();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Class deleted successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting class:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error deleting class', 'error');
+        }
+    }
+
+showAddSubjectModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Subject</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <form id="addSubjectForm">
+                    <div class="form-group">
+                        <label>Subject Name</label>
+                        <input type="text" name="name" placeholder="e.g., Mathematics" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Subject</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('addSubjectForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.addSubject(e.target);
+    });
+}
+
+async addSubject(form) {
+    try {
+        const formData = new FormData(form);
+        
+        const newSubject = {
+            name: formData.get('name'),
+            createdAt: new Date().toISOString()
+        };
+
+        await firebaseHelper.add(collections.subjects, newSubject);
+
+        // Add activity
+        await firebaseHelper.add(collections.activities, {
+            icon: 'fa-book',
+            text: `New subject added: ${newSubject.name}`,
+            time: 'Just now',
+            user: authManager.currentUser.name,
+            createdAt: new Date().toISOString()
+        });
+
+        form.closest('.modal').remove();
+        this.loadSubjects();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Subject added successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error adding subject:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error adding subject', 'error');
+        }
+    }
+
+async deleteSubject(id) {
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+
+    try {
+        await firebaseHelper.delete(collections.subjects, id);
+        this.loadSubjects();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Subject deleted successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting subject:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error deleting subject', 'error');
+        }
+    }
+
+showUploadStudentsModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Students from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Admission Number (required)</li>
+                        <li>Name (required)</li>
+                        <li>Class (required)</li>
+                        <li>Gender (required)</li>
+                        <li>Date of Birth (required, format: YYYY-MM-DD)</li>
+                        <li>Parent Email (optional)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadStudentTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="studentUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="studentFileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <button id="processStudentBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('studentUploadArea', 'studentFileInput', 'processStudentBtn', (file) => {
+        this.processStudentExcel(file);
+    });
+}
+
+downloadStudentTemplate() {
+    const templateData = [
+        ['Admission Number', 'Name', 'Class', 'Gender', 'Date of Birth', 'Parent Email']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'students_template.xlsx');
+}
+
+async processStudentExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const students = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0] && row[1] && row[2] && row[3] && row[4]) { // Required fields
+                const student = {
+                    admissionNumber: row[0],
+                    name: row[1],
+                    class: row[2],
+                    gender: row[3],
+                    dateOfBirth: row[4],
+                    parent: row[5] || null,
+                    createdAt: new Date().toISOString()
+                };
+                students.push(student);
+            }
+        }
+
+        // Add students to Firebase
+        for (const student of students) {
+            await firebaseHelper.add(collections.students, student);
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadStudents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${students.length} students uploaded successfully!`, 'success');
+        }
+    } catch (error) {
+        console.error('Error processing Excel file:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
+    }
+
+showUploadClassesModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Classes from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Class Name (required)</li>
+                        <li>Class Teacher Email (optional)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadClassTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="classUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="classFileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <button id="processClassBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('classUploadArea', 'classFileInput', 'processClassBtn', (file) => {
+        this.processClassExcel(file);
+    });
+}
+
+downloadClassTemplate() {
+    const templateData = [
+        ['Class Name', 'Class Teacher Email']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'classes_template.xlsx');
+}
+
+async processClassExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const classes = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0]) { // Class name is required
+                const cls = {
+                    name: row[0],
+                    teacher: row[1] || null,
+                    createdAt: new Date().toISOString()
+                };
+                classes.push(cls);
+            }
+        }
+
+        // Add classes to Firebase
+        for (const cls of classes) {
+            await firebaseHelper.add(collections.classes, cls);
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadClasses();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${classes.length} classes uploaded successfully!`, 'success');
+        }
+    } catch (error) {
+        console.error('Error processing Excel file:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
+    }
+
+showUploadSubjectsModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Subjects from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Subject Name (required)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadSubjectTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="subjectUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="subjectFileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <button id="processSubjectBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('subjectUploadArea', 'subjectFileInput', 'processSubjectBtn', (file) => {
+        this.processSubjectExcel(file);
+    });
+}
+
+downloadSubjectTemplate() {
+    const templateData = [
+        ['Subject Name']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'subjects_template.xlsx');
+}
+
+async processSubjectExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const subjects = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0]) { // Subject name is required
+                const subject = {
+                    name: row[0],
+                    createdAt: new Date().toISOString()
+                };
+                subjects.push(subject);
+            }
+        }
+
+        // Add subjects to Firebase
+        for (const subject of subjects) {
+            await firebaseHelper.add(collections.subjects, subject);
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadSubjects();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${subjects.length} subjects uploaded successfully!`, 'success');
+        }
+    } catch (error) {
+        console.error('Error processing Excel file:', error);
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification('Error processing Excel file', 'error');
+        }
+    }
+
+showUploadTeachersModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Teachers from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Name (required)</li>
+                        <li>Email (required)</li>
+                        <li>Password (required)</li>
+                        <li>Assigned Classes (optional, comma separated)</li>
+                        <li>Subjects (optional, comma separated)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadTeacherTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="teacherUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="teacherFileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <button id="processTeacherBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('teacherUploadArea', 'teacherFileInput', 'processTeacherBtn', (file) => {
+        this.processTeacherExcel(file);
+    });
+}
+
+downloadTeacherTemplate() {
+    const templateData = [
+        ['Name', 'Email', 'Password', 'Assigned Classes', 'Subjects']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'teachers_template.xlsx');
+}
+
+async processTeacherExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const teachers = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0] && row[1] && row[2]) { // Name, Email, Password are required
+                const teacher = {
+                    name: row[0],
+                    email: row[1],
+                    password: row[2],
+                    role: 'teacher',
+                    status: 'active',
+                    assignedClasses: row[3] ? row[3].split(',').map(c => c.trim()) : [],
+                    subjects: row[4] ? row[4].split(',').map(s => s.trim()) : [],
+                    createdAt: new Date().toISOString()
+                };
+                teachers.push(teacher);
+            }
+        }
+
+        // Add teachers to Firebase
+        for (const teacher of teachers) {
+            try {
+                // Create user in Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(
+                    teacher.email,
+                    teacher.password
+                );
+                
+                // Save user metadata to Firestore
+                await firebaseHelper.add(collections.users, teacher);
+                
+                console.log(`Created teacher: ${teacher.name}`);
+            } catch (error) {
+                console.error(`Error creating teacher ${teacher.email}:`, error);
+            }
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadTeachers();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${teachers.length} teachers uploaded successfully!`, 'success');
+        }
+    }
+
+showUploadParentsModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Parents from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Name (required)</li>
+                        <li>Email (required)</li>
+                        <li>Password (required)</li>
+                        <li>Children (optional, comma separated admission numbers)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadParentTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="parentUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="parentFileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <button id="processParentBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('parentUploadArea', 'parentFileInput', 'processParentBtn', (file) => {
+        this.processParentExcel(file);
+    });
+}
+
+downloadParentTemplate() {
+    const templateData = [
+        ['Name', 'Email', 'Password', 'Children']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'parents_template.xlsx');
+}
+
+async processParentExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const parents = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0] && row[1] && row[2]) { // Name, Email, Password are required
+                const parent = {
+                    name: row[0],
+                    email: row[1],
+                    password: row[2],
+                    role: 'parent',
+                    status: 'active',
+                    children: row[3] ? row[3].split(',').map(c => c.trim()) : [],
+                    createdAt: new Date().toISOString()
+                };
+                parents.push(parent);
+            }
+        }
+
+        // Add parents to Firebase
+        for (const parent of parents) {
+            try {
+                // Create user in Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(
+                    parent.email,
+                    parent.password
+                );
+                
+                // Save user metadata to Firestore
+                await firebaseHelper.add(collections.users, parent);
+                
+                // Update students with parent email
+                if (parent.children) {
+                    for (const childAdmission of parent.children) {
+                        const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                        if (students.length > 0) {
+                            await firebaseHelper.update(collections.students, students[0].id, {
+                                ...students[0],
+                                parent: parent.email
+                            });
+                        }
+                    }
+                }
+                
+                console.log(`Created parent: ${parent.name}`);
+            } catch (error) {
+                console.error(`Error creating parent ${parent.email}:`, error);
+            }
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadParents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${parents.length} parents uploaded successfully!`, 'success');
+        }
+    }
+
+showUploadParentsModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Parents from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Name (required)</li>
+                        <li>Email (required)</li>
+                        <li>Password (required)</li>
+                        <li>Children (optional, comma separated admission numbers)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadParentTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="parentUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="parentFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                </div>
+                <button id="processParentBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('parentUploadArea', 'parentFileInput', 'processParentBtn', (file) => {
+        this.processParentExcel(file);
+    });
+}
+
+downloadParentTemplate() {
+    const templateData = [
+        ['Name', 'Email', 'Password', 'Children']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'parents_template.xlsx');
+}
+
+async processParentExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const parents = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0] && row[1] && row[2]) { // Name, Email, Password are required
+                const parent = {
+                    name: row[0],
+                    email: row[1],
+                    password: row[2],
+                    role: 'parent',
+                    status: 'active',
+                    children: row[3] ? row[3].split(',').map(c => c.trim()) : [],
+                    createdAt: new Date().toISOString()
+                };
+                parents.push(parent);
+            }
+        }
+
+        // Add parents to Firebase
+        for (const parent of parents) {
+            try {
+                // Create user in Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(
+                    parent.email,
+                    parent.password
+                );
+                
+                // Save user metadata to Firestore
+                await firebaseHelper.add(collections.users, parent);
+                
+                // Update students with parent email
+                if (parent.children) {
+                    for (const childAdmission of parent.children) {
+                        const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                        if (students.length > 0) {
+                            await firebaseHelper.update(collections.students, students[0].id, {
+                                ...students[0],
+                                parent: parent.email
+                            });
+                        }
+                    }
+                }
+                
+                console.log(`Created parent: ${parent.name}`);
+            } catch (error) {
+                console.error(`Error creating parent ${parent.email}:`, error);
+            }
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadParents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${parents.length} parents uploaded successfully!`, 'success');
+        }
+    }
+
+showUploadParentsModal() {
+    const modal = document.getElementById('modalContainer');
+    
+    modal.innerHTML = `
+        <div class="modal active excel-upload-modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Upload Parents from Excel</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div class="excel-template">
+                    <p><strong>Excel Format:</strong></p>
+                    <p>Your Excel file should contain the following columns:</p>
+                    <ul>
+                        <li>Name (required)</li>
+                        <li>Email (required)</li>
+                        <li>Password (required)</li>
+                        <li>Children (optional, comma separated admission numbers)</li>
+                    </ul>
+                    <a href="#" class="template-link" onclick="app.downloadParentTemplate(); return false;">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="upload-area" id="parentUploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <div class="upload-text">Drag and drop your Excel file here</div>
+                    <div class="upload-hint">or click to browse</div>
+                    <input type="file" id="parentFileInput" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                </div>
+                <button id="processParentBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </div>
+        </div>
+    `;
+
+    this.setupFileUpload('parentUploadArea', 'parentFileInput', 'processParentBtn', (file) => {
+        this.processParentExcel(file);
+    });
+}
+
+downloadParentTemplate() {
+    const templateData = [
+        ['Name', 'Email', 'Password', 'Children']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'parents_template.xlsx');
+}
+
+async processParentExcel(file) {
+    try {
+        const data = await this.readExcelFile(file);
+        const parents = [];
+        
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (row[0] && row[1] && row[2]) { // Name, Email, Password are required
+                const parent = {
+                    name: row[0],
+                    email: row[1],
+                    password: row[2],
+                    role: 'parent',
+                    status: 'active',
+                    children: row[3] ? row[3].split(',').map(c => c.trim()) : [],
+                    createdAt: new Date().toISOString()
+                };
+                parents.push(parent);
+            }
+        }
+
+        // Add parents to Firebase
+        for (const parent of parents) {
+            try {
+                // Create user in Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(
+                    parent.email,
+                    parent.password
+                );
+                
+                // Save user metadata to Firestore
+                await firebaseHelper.add(collections.users, parent);
+                
+                // Update students with parent email
+                if (parent.children) {
+                    for (const childAdmission of parent.children) {
+                        const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                        if (students.length > 0) {
+                            await firebaseHelper.update(collections.students, students[0].id, {
+                                ...students[0],
+                                parent: parent.email
+                            });
+                        }
+                    }
+                }
+                
+                console.log(`Created parent: ${parent.name}`);
+            } catch (error) {
+                console.error(`Error creating parent ${parent.email}:`, error);
+            }
+        }
+
+        document.getElementById('modalContainer').innerHTML = '';
+        this.loadParents();
+        if (typeof authManager !== 'undefined') {
+            authManager.showNotification(`${parents.length} parents uploaded successfully!`, 'success');
+        }
+    }

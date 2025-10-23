@@ -1148,3 +1148,30 @@ body {
     padding: 8px;
     border-bottom: 1px solid #e5e7eb;
 }
+
+.footer {
+    background: var(--dark-color);
+    color: white;
+    text-align: center;
+    padding: 25px;
+    margin-top: auto;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.footer-designer {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.designer-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.designer-link:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}

@@ -226,10 +226,9 @@ class ResultsManager {
             </div>
         `;
 
-        app.setupFileUpload('resultUploadArea', 'resultFileInput', 'processResultBtn', (file) => {
-            this.processResultExcel(file);
-        });
-    }
+       window.app.setupFileUpload('resultUploadArea', 'resultFileInput', 'processResultBtn', (file) => {
+    this.processResultExcel(file);
+});
 
     downloadResultTemplate() {
         const templateData = [

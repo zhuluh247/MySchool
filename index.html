@@ -353,11 +353,32 @@
         
         menuItems.forEach((item, index) => {
             console.log(`Menu item ${index}:`, item.dataset.section, item.textContent);
+            
+            // Test click event
+            item.addEventListener('click', () => {
+                console.log('Clicked menu item:', item.dataset.section);
+            });
         });
     }
     
     // Run debug function after page loads
     setTimeout(debugNavigation, 1000);
+    
+    // Test individual menu items
+    setTimeout(() => {
+        const menuItems = document.querySelectorAll('.menu-item');
+        console.log('Testing individual menu items...');
+        
+        menuItems.forEach((item, index) => {
+            console.log(`Testing menu item ${index}:`, item.dataset.section, item.textContent);
+            
+            // Simulate click
+            item.click();
+            setTimeout(() => {
+                console.log(`After clicking menu item ${index}:`, document.querySelector('.section.active')?.id);
+            }, 500);
+        }, 2000);
+    }, 3000);
 </script>
 </body>
 </html>

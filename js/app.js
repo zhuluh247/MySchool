@@ -77,13 +77,36 @@ class App {
     }
 
     setupSearchButtons() {
-        // Student search button
-        const studentSearchBtn = document.getElementById('studentSearchBtn');
-        if (studentSearchBtn) {
-            studentSearchBtn.addEventListener('click', () => {
+    // Student search - automatic on input
+    const studentSearchInput = document.getElementById('studentSearchInput');
+    if (studentSearchInput) {
+        let searchTimeout;
+        studentSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
                 this.searchStudents();
-            });
-        }
+            }, 500); // Wait 500ms after user stops typing
+        });
+    }
+
+    // Hide search buttons since they're no longer needed
+    const studentSearchBtn = document.getElementById('studentSearchBtn');
+    if (studentSearchBtn) {
+        studentSearchBtn.style.display = 'none';
+    }
+
+    // Behavior search - automatic on input
+    const behaviorSearchInput = document.getElementById('studentSearch');
+    if (behaviorSearchInput) {
+        let behaviorSearchTimeout;
+        behaviorSearchInput.addEventListener('input', (e) => {
+            clearTimeout(behaviorSearchTimeout);
+            behaviorSearchTimeout = setTimeout(() => {
+                this.searchBehaviorStudents();
+            }, 500);
+        });
+    }
+}
 
         // Student search input enter key
         const studentSearchInput = document.getElementById('studentSearchInput');

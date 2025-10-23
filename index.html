@@ -12,6 +12,21 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
+    <script>
+    // Debug function to check if navigation is working
+    function debugNavigation() {
+        console.log('Checking navigation...');
+        const menuItems = document.querySelectorAll('.menu-item');
+        console.log('Menu items found:', menuItems.length);
+        
+        menuItems.forEach((item, index) => {
+            console.log(`Menu item ${index}:`, item.dataset.section, item.textContent);
+        });
+    }
+    
+    // Run debug function after page loads
+    setTimeout(debugNavigation, 1000);
+</script>
     <!-- Login Screen -->
     <div id="loginScreen" class="screen active">
         <div class="login-container">

@@ -6,13 +6,15 @@ class App {
     }
 
     init() {
-        this.setupNavigation();
-        this.setupUserManagement();
-        this.setupStudentsManagement();
-        this.setupClassesManagement();
-        this.setupSubjectsManagement();
-        this.setupSearchButtons();
-    }
+    this.setupNavigation();
+    this.setupTeacherManagement();
+    this.setupParentManagement();
+    this.setupClassSubjectsManagement();
+    this.setupStudentsManagement();
+    this.setupClassesManagement();
+    this.setupSubjectsManagement();
+    this.setupSearchButtons();
+}
 
     setupNavigation() {
         const menuItems = document.querySelectorAll('.menu-item');

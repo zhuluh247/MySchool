@@ -14,24 +14,66 @@ class BehaviorManager {
     }
 
     async loadStudents() {
-        try {
-            const studentSelect = document.getElementById('studentSelect');
-            let students = await firebaseHelper.getAll(collections.students);
-            
-            // Parents can only select their children
-            if (authManager.currentUser.role === 'parent') {
-                students = students.filter(s => s.parent === authManager.currentUser.email);
-            }
-
-            // Store all students for filtering
-            this.allStudents = students;
-
-            // Populate select
-            this.updateStudentSelect(students);
-        } catch (error) {
-            console.error('Error loading students:', error);
+    try {
+        const studentSelect = document.getElementById('studentSelect');
+        let students = await firebaseHelper.getAll(collections.students);
+        
+        // Parents can only select their children
+        if (authManager.currentUser.role === 'parent') {
+            students = students.filter(s => s.parent === authManager.currentUser.email);
         }
+
+        // Store all students for filtering
+        this.allStudents = students;
+
+        // Create searchable select
+        this.createSearchableSelect(students);
+    } catch (error) {
+        console.error('Error loading students:', error);
     }
+}
+
+createSearchableSelect(students) {
+    const studentSelect = document.getElementById('studentSelect');
+    
+    // Create a searchable dropdown container
+    const searchableContainer = document.createElement('div');
+    searchableContainer.className = 'searchable-select-container';
+    
+    // Create search input
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search students...';
+    searchInput.className = 'form-control';
+    
+    // Create select element
+    const selectElement = document.createElement('select');
+    selectElement.id = 'studentSelect';
+    selectElement.className = 'form-control';
+    selectElement.innerHTML = '<option value="">Select Student</option>' + 
+        students.map(s => `<option value="${s.id}">${s.name} - ${s.class}</option>`).join('');
+    
+    // Add search functionality
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredStudents = students.filter(student => 
+            student.name.toLowerCase().includes(searchTerm) ||
+            student.class.toLowerCase().includes(searchTerm) ||
+            student.admissionNumber.toLowerCase().includes(searchTerm)
+        );
+        
+        selectElement.innerHTML = '<option value="">Select Student</option>' + 
+            filteredStudents.map(s => `<option value="${s.id}">${s.name} - ${s.class}</option>`).join('');
+    });
+    
+    // Replace the original select with our searchable container
+    const originalSelect = document.getElementById('studentSelect');
+    if (originalSelect) {
+        originalSelect.parentNode.replaceChild(searchableContainer, originalSelect);
+        searchableContainer.appendChild(searchInput);
+        searchableContainer.appendChild(selectElement);
+    }
+}
 
     updateStudentSelect(students) {
         const studentSelect = document.getElementById('studentSelect');

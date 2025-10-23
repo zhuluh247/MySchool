@@ -943,30 +943,35 @@ class App {
         }
     }
 
-    async loadClasses() {
-        try {
-            const classesGrid = document.getElementById('classesGrid');
-            const classes = await firebaseHelper.getAll(collections.classes);
-            
-            classesGrid.innerHTML = classes.map(cls => {
-                const studentsCount = this.getStudentsCount(cls.name);
-                return `
-                    <div class="class-card">
-                        <div class="class-header">
-                            <div class="class-name">${cls.name}</div>
+async loadClasses() {
+    try {
+        const classesGrid = document.getElementById('classesGrid');
+        const classes = await firebaseHelper.getAll(collections.classes);
+        
+        classesGrid.innerHTML = classes.map(cls => {
+            const studentsCount = this.getStudentsCount(cls.name);
+            return `
+                <div class="class-card">
+                    <div class="class-header">
+                        <div class="class-name">${cls.name}</div>
+                        <div class="class-actions">
+                            <button class="btn btn-sm btn-warning" onclick="app.editClass('${cls.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
                             <button class="btn btn-sm btn-danger" onclick="app.deleteClass('${cls.id}')">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
-                        <div class="class-teacher">Class Teacher: ${cls.teacher || 'Not assigned'}</div>
-                        <div class="class-students">${studentsCount} Students</div>
                     </div>
-                `;
-            }).join('');
-        } catch (error) {
-            console.error('Error loading classes:', error);
-        }
+                    <div class="class-teacher">Class Teacher: ${cls.teacher || 'Not assigned'}</div>
+                    <div class="class-students">${studentsCount} Students</div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading classes:', error);
     }
+}
 
     async getStudentsCount(className) {
         try {

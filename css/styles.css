@@ -416,7 +416,14 @@ body {
 .search-container {
     margin-bottom: 20px;
 }
+.searchable-select-container {
+    position: relative;
+    margin-bottom: 20px;
+}
 
+.searchable-select-container input {
+    margin-bottom: 10px;
+}
 /* Enhanced Search Box */
 .search-box {
     display: flex;

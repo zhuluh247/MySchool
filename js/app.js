@@ -1,11 +1,11 @@
 // Main Application Controller
 class App {
     constructor() {
-        this.currentUserRole = 'teachers'; // Default tab
         this.init();
     }
 
     init() {
+        console.log('Initializing app...');
         // Initialize navigation first
         this.setupNavigation();
         
@@ -17,6 +17,9 @@ class App {
         this.setupClassesManagement();
         this.setupSubjectsManagement();
         this.setupSearchButtons();
+        
+        // Make app globally accessible
+        window.app = this;
     }
 
     setupNavigation() {
@@ -25,11 +28,6 @@ class App {
         // Get all menu items
         const menuItems = document.querySelectorAll('.menu-item');
         console.log('Found menu items:', menuItems.length);
-        
-        // Remove existing listeners to avoid duplicates
-        menuItems.forEach(item => {
-            item.removeEventListener('click', this.handleMenuClick);
-        });
         
         // Add click event listeners to all menu items
         menuItems.forEach(item => {
@@ -179,7 +177,9 @@ class App {
             this.displayStudents(filteredStudents);
         } catch (error) {
             console.error('Error searching students:', error);
-            authManager.showNotification('Error searching students', 'error');
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Error searching students', 'error');
+            }
         }
     }
 
@@ -187,7 +187,9 @@ class App {
         try {
             const searchTerm = document.getElementById('studentSearch').value.trim();
             if (!searchTerm) {
-                behaviorManager.loadStudents();
+                if (typeof behaviorManager !== 'undefined') {
+                    behaviorManager.loadStudents();
+                }
                 return;
             }
 
@@ -198,10 +200,14 @@ class App {
                 student.class.toLowerCase().includes(searchTerm.toLowerCase())
             );
 
-            behaviorManager.updateStudentSelect(filteredStudents);
+            if (typeof behaviorManager !== 'undefined') {
+                behaviorManager.updateStudentSelect(filteredStudents);
+            }
         } catch (error) {
             console.error('Error searching behavior students:', error);
-            authManager.showNotification('Error searching students', 'error');
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Error searching students', 'error');
+            }
         }
     }
 
@@ -445,6 +451,288 @@ class App {
             `;
         } catch (error) {
             console.error('Error loading class subjects:', error);
+        }
+    }
+
+    showAddTeacherModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Add Teacher</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="addTeacherForm">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Classes (Hold Ctrl/Cmd to select multiple)</label>
+                            <select name="assignedClasses" multiple required>
+                                <!-- Classes will be loaded here -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Subjects (Hold Ctrl/Cmd to select multiple)</label>
+                            <select name="subjects" multiple required>
+                                <!-- Subjects will be loaded here -->
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Teacher</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        // Load classes and subjects into selects
+        this.loadClassesIntoSelect('select[name="assignedClasses"]');
+        this.loadSubjectsIntoSelect('select[name="subjects"]');
+
+        document.getElementById('addTeacherForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addTeacher(e.target);
+        });
+    }
+
+    async addTeacher(form) {
+        try {
+            const formData = new FormData(form);
+            const assignedClasses = Array.from(formData.getAll('assignedClasses'));
+            const subjects = Array.from(formData.getAll('subjects'));
+            
+            // Create user in Firebase Auth
+            const userCredential = await auth.createUserWithEmailAndPassword(
+                formData.get('email'),
+                formData.get('password')
+            );
+            
+            // Prepare user data
+            const userData = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                role: 'teacher',
+                status: 'active',
+                assignedClasses: assignedClasses,
+                subjects: subjects,
+                createdAt: new Date().toISOString()
+            };
+
+            // Save user metadata to Firestore
+            await firebaseHelper.add(collections.users, userData);
+
+            form.closest('.modal').remove();
+            this.loadTeachers();
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Teacher added successfully!', 'success');
+            }
+        } catch (error) {
+            console.error('Error adding teacher:', error);
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Error adding teacher: ' + error.message, 'error');
+            }
+        }
+    }
+
+    showAddParentModal() {
+        const modal = document.getElementById('modalContainer');
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Add Parent</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="addParentForm">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Children's Admission Numbers (comma separated)</label>
+                            <input type="text" name="children" placeholder="2024001, 2024002">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Parent</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('addParentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addParent(e.target);
+        });
+    }
+
+    async addParent(form) {
+        try {
+            const formData = new FormData(form);
+            
+            // Create user in Firebase Auth
+            const userCredential = await auth.createUserWithEmailAndPassword(
+                formData.get('email'),
+                formData.get('password')
+            );
+            
+            // Prepare user data
+            const userData = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                role: 'parent',
+                status: 'active',
+                children: formData.get('children') ? formData.get('children').split(',').map(c => c.trim()) : [],
+                createdAt: new Date().toISOString()
+            };
+
+            // Save user metadata to Firestore
+            await firebaseHelper.add(collections.users, userData);
+
+            // Update students with parent email
+            if (userData.children) {
+                for (const childAdmission of userData.children) {
+                    const students = await firebaseHelper.query(collections.students, 'admissionNumber', '==', childAdmission);
+                    if (students.length > 0) {
+                        await firebaseHelper.update(collections.students, students[0].id, {
+                            ...students[0],
+                            parent: userData.email
+                        });
+                    }
+                }
+            }
+
+            form.closest('.modal').remove();
+            this.loadParents();
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Parent added successfully!', 'success');
+            }
+        } catch (error) {
+            console.error('Error adding parent:', error);
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Error adding parent: ' + error.message, 'error');
+            }
+        }
+    }
+
+    showAssignSubjectsModal() {
+        const modal = document.getElementById('modalContainer');
+        const classSelect = document.getElementById('classSelectForSubjects');
+        const selectedClass = classSelect.value;
+        
+        if (!selectedClass) {
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Please select a class first', 'error');
+            }
+            return;
+        }
+        
+        modal.innerHTML = `
+            <div class="modal active">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3>Assign Subjects to ${selectedClass}</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <form id="assignSubjectsForm">
+                        <input type="hidden" name="className" value="${selectedClass}">
+                        <div class="form-group">
+                            <label>Select Subjects (Hold Ctrl/Cmd to select multiple)</label>
+                            <select name="subjects" multiple required>
+                                <!-- Subjects will be loaded here -->
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Assign Subjects</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        // Load subjects into select
+        this.loadSubjectsIntoSelect('select[name="subjects"]');
+
+        document.getElementById('assignSubjectsForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.assignSubjects(e.target);
+        });
+    }
+
+    async assignSubjects(form) {
+        try {
+            const formData = new FormData(form);
+            const className = formData.get('className');
+            const subjectIds = Array.from(formData.getAll('subjects'));
+            
+            // Clear existing subjects for this class
+            const existingClassSubjects = await firebaseHelper.query(collections.classSubjects, 'className', '==', className);
+            for (const cs of existingClassSubjects) {
+                await firebaseHelper.delete(collections.classSubjects, cs.id);
+            }
+            
+            // Add new subject assignments
+            for (const subjectId of subjectIds) {
+                await firebaseHelper.add(collections.classSubjects, {
+                    className: className,
+                    subjectId: subjectId,
+                    createdAt: new Date().toISOString()
+                });
+            }
+
+            form.closest('.modal').remove();
+            this.loadClassSubjects();
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Subjects assigned successfully!', 'success');
+            }
+        } catch (error) {
+            console.error('Error assigning subjects:', error);
+            if (typeof authManager !== 'undefined') {
+                authManager.showNotification('Error assigning subjects', 'error');
+            }
+        }
+    }
+
+    async loadClassesIntoSelect(selector) {
+        try {
+            const classes = await firebaseHelper.getAll(collections.classes);
+            const select = document.querySelector(selector);
+            if (select) {
+                select.innerHTML = classes.map(cls => `
+                    <option value="${cls.name}">${cls.name}</option>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading classes:', error);
+        }
+    }
+
+    async loadSubjectsIntoSelect(selector) {
+        try {
+            const subjects = await firebaseHelper.getAll(collections.subjects);
+            const select = document.querySelector(selector);
+            if (select) {
+                select.innerHTML = subjects.map(subject => `
+                    <option value="${subject.id}">${subject.name}</option>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading subjects:', error);
         }
     }
 

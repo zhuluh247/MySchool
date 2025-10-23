@@ -94,9 +94,15 @@
                     <li><a href="#" data-section="behavior" class="menu-item">
                         <i class="fas fa-user-check"></i> Behavior Tracking
                     </a></li>
-                    <li class="proprietor-only"><a href="#" data-section="users" class="menu-item">
-                        <i class="fas fa-users"></i> User Management
-                    </a></li>
+                    <li class="proprietor-only"><a href="#" data-section="teachers" class="menu-item">
+    <i class="fas fa-chalkboard-teacher"></i> Teachers
+</a></li>
+<li class="proprietor-only"><a href="#" data-section="parents" class="menu-item">
+    <i class="fas fa-users"></i> Parents
+</a></li>
+<li class="proprietor-only"><a href="#" data-section="classSubjects" class="menu-item">
+    <i class="fas fa-book"></i> Class Subjects
+</a></li>
                 </ul>
             </aside>
 
@@ -244,40 +250,74 @@
                     <div id="behaviorList" class="behavior-timeline"></div>
                 </section>
 
-                <!-- User Management Section -->
-                <section id="users" class="section">
-                    <h2>User Management</h2>
-                    <div class="user-tabs">
-                        <button class="tab-btn active" onclick="app.showUserTab('teachers')">Teachers</button>
-                        <button class="tab-btn" onclick="app.showUserTab('parents')">Parents</button>
-                    </div>
-                    <div class="action-buttons">
-                        <button id="addUserBtn" class="btn btn-primary">
-                            <i class="fas fa-user-plus"></i> Add User
-                        </button>
-                        <button id="uploadUsersBtn" class="btn btn-success">
-                            <i class="fas fa-file-excel"></i> Upload Excel
-                        </button>
-                    </div>
-                    <div class="users-table-container">
-                        <table id="usersTable" class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </section>
-            </main>
-        </div>
+               <!-- Teacher Management Section -->
+<section id="teachers" class="section">
+    <h2>Teacher Management</h2>
+    <div class="action-buttons">
+        <button id="addTeacherBtn" class="btn btn-primary">
+            <i class="fas fa-user-plus"></i> Add Teacher
+        </button>
+        <button id="uploadTeachersBtn" class="btn btn-success">
+            <i class="fas fa-file-excel"></i> Upload Excel
+        </button>
     </div>
+    <div class="teachers-table-container">
+        <table id="teachersTable" class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Assigned Classes</th>
+                    <th>Subjects</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</section>
 
+<!-- Parent Management Section -->
+<section id="parents" class="section">
+    <h2>Parent Management</h2>
+    <div class="action-buttons">
+        <button id="addParentBtn" class="btn btn-primary">
+            <i class="fas fa-user-plus"></i> Add Parent
+        </button>
+        <button id="uploadParentsBtn" class="btn btn-success">
+            <i class="fas fa-file-excel"></i> Upload Excel
+        </button>
+    </div>
+    <div class="parents-table-container">
+        <table id="parentsTable" class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Children</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Class Subjects Management Section -->
+<section id="classSubjects" class="section">
+    <h2>Class Subjects Management</h2>
+    <div class="class-subjects-controls">
+        <select id="classSelectForSubjects" class="form-control">
+            <option value="">Select Class</option>
+        </select>
+        <button id="assignSubjectsBtn" class="btn btn-primary">
+            <i class="fas fa-book"></i> Assign Subjects
+        </button>
+    </div>
+    <div id="classSubjectsContent" class="class-subjects-content"></div>
+</section>
     <!-- Footer -->
     <footer class="footer">
         <p>&copy; 2025 MySchool. All rights reserved.</p>
